@@ -15,3 +15,7 @@ computer-assisted theorem proving, and Coq.
 
 Programming Language Foundations surveys the theory of programming languages,
 including operational semantics, Hoare logic, and static type systems.
+
+## [Assignments](assignments)
+
+SNU Software Foundations 2023 Spring Assignments
