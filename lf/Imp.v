@@ -17,9 +17,6 @@ Set Default Goal Selector "!".
 
 Module AExp.
 
-(** These two definitions specify the _abstract syntax_ of
-    arithmetic and boolean expressions. *)
-
 Inductive aexp : Type :=
   | ANum (n : nat)
   | APlus (a1 a2 : aexp)
@@ -131,9 +128,9 @@ Definition manual_grade_for_beval_rules : option (nat*string) := None.
 
 Theorem aeval_iff_aevalR : forall a n, (a ==> n) <-> aeval a = n.
 Proof. split.
-  - intros H; induction H; simpl in *;
+  - intros H. induction H; simpl in *;
     try rewrite IHaevalR1, IHaevalR2; reflexivity.
-  - revert n; induction a; simpl; intros; subst; eauto using aevalR.
+  - revert n. induction a; simpl; intros; subst; eauto using aevalR.
 Qed.
 
 (** **** Exercise: 3 stars, standard (bevalR) *)
@@ -674,8 +671,7 @@ Theorem ceval_deterministic: forall (c:com) st st1 st2 s1 s2,
   st1 = st2 /\ s1 = s2.
 Proof.
   intros ? ? ? ? ? ? CEVAL1 CEVAL2; revert st2 s2 CEVAL2.
-  induction CEVAL1 as [
-    (* E_Skip *) | (* E_Break *)
+  induction CEVAL1 as [ (* E_Skip *) | (* E_Break *)
     (* E_Asgn *)        | AEVAL
     (* E_SeqB *)        | c11 c12 st st1 CEVAL11 IH1
     (* E_SeqC *)        | c11 c12 st st1' st1 s1 CEVAL11 IH1 CEVAL12 IH2
@@ -698,5 +694,3 @@ Proof.
 Qed.
 (** [] *)
 End BreakImp.
-
-(* 2023-06-10 17:17+09:00 *)

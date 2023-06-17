@@ -7,10 +7,6 @@ From LF Require Export Lists.
 (* ================================================================= *)
 (** ** Polymorphic Lists *)
 
-Inductive boollist : Type :=
-  | bool_nil
-  | bool_cons (b : bool) (l : boollist).
-
 Inductive list (X:Type) : Type :=
   | nil
   | cons (x : X) (l : list X).
@@ -50,7 +46,6 @@ Fixpoint length {X : Type} (l : list X) : nat :=
 (** *** Supplying Type Arguments Explicitly *)
 
 Definition mynil : list nat := nil.
-
 Definition mynil' := @nil nat.
 
 Notation "x :: y" := (cons x y)
@@ -130,15 +125,6 @@ Proof. reflexivity. Qed.
 (* ================================================================= *)
 (** ** Polymorphic Options *)
 
-Module OptionPlayground.
-
-Inductive option (X:Type) : Type := Some (x : X) | None.
-
-Arguments Some {X}.
-Arguments None {X}.
-
-End OptionPlayground.
-
 Fixpoint nth_error {X : Type} (l : list X) (n : nat)
                    : option X :=
   match l with
@@ -165,12 +151,6 @@ Proof. reflexivity. Qed.
 
 (* ################################################################# *)
 (** * Functions as Data *)
-
-(* ================================================================= *)
-(** ** Higher-Order Functions *)
-
-Definition doit3times {X : Type} (f : X->X) (n : X) : X :=
-  f (f (f n)).
 
 (* ================================================================= *)
 (** ** Filter *)
@@ -331,7 +311,7 @@ Definition cnat := forall (X : Type), (X -> X) -> (X -> X).
 Definition one := fun (X : Type) (f : X -> X) => f.
 Definition two := fun (X : Type) (f : X -> X) => fun x => f (f x).
 Definition zero := fun (X : Type) (f : X -> X) => fun (x : X) => x.
-Definition three : cnat := @doit3times.
+Definition three := fun (X : Type) (f : X -> X) => fun x => f (f (f x)).
 
 (** **** Exercise: 2 stars, advanced (church_scc) *)
 
@@ -385,5 +365,3 @@ Proof. reflexivity. Qed.
 
 End Church.
 End Exercises.
-
-(* 2023-06-09 05:50+09:00 *)

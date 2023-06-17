@@ -17,7 +17,7 @@ Proof. intros. apply H0, H, H1. Qed.
 
 Theorem rev_exercise1 : forall (l l' : list nat),
   l = rev l' -> l' = rev l.
-Proof. intros; rewrite <- (rev_involutive nat l'); f_equal; eauto. Qed.
+Proof. intros. rewrite <- (rev_involutive nat l'), H. reflexivity. Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -65,7 +65,10 @@ Definition manual_grade_for_informal_proof : option (nat*string) := None.
 
 (** **** Exercise: 3 stars, standard, especially useful (plus_n_n_injective) *)
 Theorem plus_n_n_injective : forall n m, n + n = m + m -> n = m.
-Proof. lia. Qed.
+Proof.
+  induction n, m as [|m]; try reflexivity; try discriminate.
+  * repeat rewrite <- plus_n_Sm. simpl. intros. inversion H. eauto.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, especially useful (gen_dep_practice) *)
@@ -198,5 +201,3 @@ Theorem existsb_existsb' : forall (X : Type) (test : X -> bool) (l : list X),
 Proof. unfold existsb'; induction l; simpl; [|destruct (test x)]; eauto. Qed.
 
 (** [] *)
-
-(* 2023-06-09 06:58+09:00 *)

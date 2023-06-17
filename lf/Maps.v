@@ -71,5 +71,3 @@ Proof.
   apply String.eqb_eq in x1x, x2x. rewrite <- x1x in x2x. contradiction.
 Qed.
 (** [] *)
-
-(* 2023-06-10 04:05+09:00 *)

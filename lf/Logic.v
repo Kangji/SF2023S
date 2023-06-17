@@ -363,6 +363,7 @@ Proof.
     + reflexivity.
     + simpl. intros [testx all_true]; rewrite testx; apply IH, all_true.
 Qed.
+(** [] *)
 
 (* ================================================================= *)
 (** ** Classical vs. Constructive Logic *)
@@ -445,5 +446,3 @@ Proof. split.
     destruct (AP_pnp P) as [p | np]; eauto.
   * intros H P. apply Logic.or_comm, H. eauto.
 Qed.
-
-(* 2023-06-10 00:53+09:00 *)

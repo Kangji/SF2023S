@@ -39,15 +39,6 @@ Notation "[ ]" := nil.
 Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
 
 (* ----------------------------------------------------------------- *)
-(** *** Repeat *)
-
-Fixpoint repeat (n count : nat) : natlist :=
-  match count with
-  | O => nil
-  | S count' => n :: (repeat n count')
-  end.
-
-(* ----------------------------------------------------------------- *)
 (** *** Length *)
 
 Fixpoint length (l:natlist) : nat :=
@@ -255,12 +246,6 @@ Definition manual_grade_for_add_inc_count : option (nat*string) := None.
 (* ################################################################# *)
 (** * Reasoning About Lists *)
 
-Theorem nil_app : forall l : natlist, [] ++ l = l.
-Proof. reflexivity. Qed.
-
-Theorem tl_length_pred : forall l, pred (length l) = length (tl l).
-Proof. intros []; reflexivity. Qed.
-
 (* ================================================================= *)
 (** ** Induction on Lists *)
 
@@ -276,16 +261,14 @@ Fixpoint rev (l:natlist) : natlist :=
   | h :: t => rev t ++ [h]
   end.
 
-Theorem app_length : forall l1 l2,
-  length (l1 ++ l2) = (length l1) + (length l2).
+Theorem app_length : forall l1 l2, length (l1 ++ l2) = (length l1) + (length l2).
 Proof. intros. list_ind l1. Qed.
 
 Theorem rev_length : forall l : natlist, length (rev l) = length l.
 Proof.
   induction l.
   - reflexivity.
-  - simpl. rewrite app_length, IHl.
-    simpl; lia.
+  - simpl. rewrite app_length, IHl, add_comm. reflexivity.
 Qed.
 
 (* ================================================================= *)
@@ -378,18 +361,7 @@ Qed.
 (* ################################################################# *)
 (** * Options *)
 
-Fixpoint nth_bad (l:natlist) (n:nat) : nat :=
-  match l with
-  | nil => 42
-  | a :: l' => match n with
-               | 0 => a
-               | S n' => nth_bad l' n'
-               end
-  end.
-
-Inductive natoption : Type :=
-  | Some (n : nat)
-  | None.
+Inductive natoption : Type := Some (n : nat) | None.
 
 Fixpoint nth_error (l:natlist) (n:nat) : natoption :=
   match l with
@@ -474,5 +446,3 @@ Theorem update_neq : forall (d : partial_map) (x y : id) (o: nat),
 Proof. intros [] ? ? ? ?; simpl; rewrite H; reflexivity. Qed.
 (** [] *)
 End PartialMap.
-
-(* 2023-06-09 05:02+09:00 *)

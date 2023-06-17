@@ -38,22 +38,6 @@ Proof. intros. inversion H. inversion H1. inversion H3. Qed.
 (* ================================================================= *)
 (** ** Induction on Evidence *)
 
-Definition Even n := exists k, n = double k.
-
-Lemma ev_Even : forall n, ev n -> Even n.
-Proof.
-  unfold Even. intros. induction H.
-  - exists 0. reflexivity.
-  - destruct IHev; rewrite H0. exists (S x). reflexivity.
-Qed.
-
-Theorem ev_Even_iff : forall n,
-  ev n <-> Even n.
-Proof. split.
-  - (* -> *) apply ev_Even.
-  - (* <- *) intros []. rewrite H. apply ev_double.
-Qed.
-
 (** **** Exercise: 2 stars, standard (ev_sum) *)
 Theorem ev_sum : forall n m, ev n -> ev m -> ev (n + m).
 Proof. intros ? ? ?; revert m. induction H; simpl; eauto using ev. Qed.
@@ -100,10 +84,7 @@ Qed.
 (* ################################################################# *)
 (** * Inductive Relations *)
 
-(** **** Exercise: 2 stars, standard, optional (total_relation)
-
-    Define an inductive binary relation [total_relation] that holds
-    between every pair of natural numbers. *)
+(** **** Exercise: 2 stars, standard, optional (total_relation) *)
 
 Inductive total_relation : nat -> nat -> Prop :=
   | total (n : nat) (m : nat) : total_relation n m.
@@ -321,12 +302,6 @@ Inductive exp_match {T} : list T -> reg_exp T -> Prop :=
 
   where "s =~ re" := (exp_match s re).
 
-Fixpoint reg_exp_of_list {T} (l : list T) :=
-  match l with
-  | [] => EmptyStr
-  | x :: l' => App (Char x) (reg_exp_of_list l')
-  end.
-
 (** **** Exercise: 3 stars, standard (exp_match_ex1) *)
 
 Lemma empty_is_empty : forall T (s : list T), ~ (s =~ EmptySet).
@@ -345,11 +320,7 @@ Proof.
 Qed.
 (** [] *)
 
-(** **** Exercise: 4 stars, standard (re_not_empty)
-
-    Write a recursive function [re_not_empty] that tests whether a
-    regular expression matches some string. Prove that your function
-    is correct. *)
+(** **** Exercise: 4 stars, standard (re_not_empty) *)
 
 Fixpoint re_not_empty {T : Type} (re : reg_exp T) : bool :=
   match re with
@@ -363,9 +334,9 @@ Lemma re_not_empty_correct : forall T (re : reg_exp T),
   (exists s, s =~ re) <-> re_not_empty re = true.
 Proof. split.
   - intros [s]; induction H; simpl; eauto.
-    + try rewrite IHexp_match1; try rewrite IHexp_match2; eauto.
-    + try rewrite IHexp_match; eauto.
-    + try rewrite IHexp_match; destruct (re_not_empty re1); eauto.
+    + rewrite IHexp_match1; rewrite IHexp_match2; eauto.
+    + rewrite IHexp_match; eauto.
+    + rewrite IHexp_match; destruct (re_not_empty re1); eauto.
   - induction re; simpl; intros; eauto using @exp_match; try discriminate.
     + apply andb_true_iff in H as [H1 H2]; apply IHre1 in H1 as [s1];
       apply IHre2 in H2 as [s2]; exists (s1 ++ s2); eauto using @exp_match.
@@ -391,22 +362,7 @@ Proof.
 Qed.
 (** [] *)
 
-(** **** Exercise: 5 stars, advanced (weak_pumping)
-
-    One of the first really interesting theorems in the theory of
-    regular expressions is the so-called _pumping lemma_, which
-    states, informally, that any sufficiently long string [s] matching
-    a regular expression [re] can be "pumped" by repeating some middle
-    section of [s] an arbitrary number of times to produce a new
-    string also matching [re].  (For the sake of simplicity in this
-    exercise, we consider a slightly weaker theorem than is usually
-    stated in courses on automata theory -- hence the name
-    [weak_pumping].)
-
-    To get started, we need to define "sufficiently long."  Since we
-    are working in a constructive logic, we actually need to be able
-    to calculate, for each regular expression [re], the minimum length
-    for strings [s] to guarantee "pumpability." *)
+(** **** Exercise: 5 stars, advanced (weak_pumping) *)
 
 Module Pumping.
 
@@ -422,46 +378,19 @@ Fixpoint pumping_constant {T} (re : reg_exp T) : nat :=
   | Star r => pumping_constant r
   end.
 
-(** You may find these lemmas about the pumping constant useful when
-    proving the pumping lemma below. *)
-
-Lemma pumping_constant_ge_1 :
-  forall T (re : reg_exp T),
-    pumping_constant re >= 1.
+Lemma pumping_constant_ge_1 : forall T (re : reg_exp T), pumping_constant re >= 1.
 Proof.
-  intros T re. induction re.
-  - (* EmptySet *)
-    apply le_n.
-  - (* EmptyStr *)
-    apply le_n.
-  - (* Char *)
-    apply le_S. apply le_n.
-  - (* App *)
-    simpl.
-    apply le_trans with (n:=pumping_constant re1).
-    apply IHre1. apply le_plus_l.
-  - (* Union *)
-    simpl.
-    apply le_trans with (n:=pumping_constant re1).
-    apply IHre1. apply le_plus_l.
-  - (* Star *)
-    simpl. apply IHre.
+  induction re; eauto using le; simpl;
+  apply le_trans with (pumping_constant re1); eauto using le_plus_l.
 Qed.
 
-Lemma pumping_constant_0_false :
-  forall T (re : reg_exp T),
-    pumping_constant re = 0 -> False.
+Lemma pumping_constant_0_false : forall T (re : reg_exp T),
+  pumping_constant re = 0 -> False.
 Proof.
   intros T re H.
-  assert (Hp1 : pumping_constant re >= 1).
-  { apply pumping_constant_ge_1. }
-  inversion Hp1 as [Hp1'| p Hp1' Hp1''].
-  - rewrite H in Hp1'. discriminate Hp1'.
-  - rewrite H in Hp1''. discriminate Hp1''.
+  assert (Hp1 : pumping_constant re >= 1) by apply pumping_constant_ge_1.
+  inversion Hp1 as [Hp1'| p Hp1'' Hp1']; rewrite H in *; discriminate.
 Qed.
-
-(** Next, it is useful to define an auxiliary function that repeats a
-    string (appends it to itself) some number of times. *)
 
 Fixpoint napp {T} (n : nat) (l : list T) : list T :=
   match n with
@@ -469,40 +398,15 @@ Fixpoint napp {T} (n : nat) (l : list T) : list T :=
   | S n' => l ++ napp n' l
   end.
 
-(** This auxiliary lemma might also be useful in your proof of the
-    pumping lemma. *)
-
 Lemma napp_plus: forall T (n m : nat) (l : list T),
   napp (n + m) l = napp n l ++ napp m l.
-Proof.
-  intros T n m l.
-  induction n as [|n IHn].
-  - reflexivity.
-  - simpl. rewrite IHn, app_assoc. reflexivity.
-Qed.
+Proof. intros; induction n; simpl; try rewrite IHn, app_assoc; eauto. Qed.
 
-Lemma napp_star :
-  forall T m s1 s2 (re : reg_exp T),
-    s1 =~ re -> s2 =~ Star re ->
-    napp m s1 ++ s2 =~ Star re.
+Lemma napp_star : forall T m s1 s2 (re : reg_exp T),
+  s1 =~ re -> s2 =~ Star re -> napp m s1 ++ s2 =~ Star re.
 Proof.
-  intros T m s1 s2 re Hs1 Hs2.
-  induction m.
-  - simpl. apply Hs2.
-  - simpl. rewrite <- app_assoc.
-    apply MStarApp.
-    + apply Hs1.
-    + apply IHm.
+  intros; induction m; simpl; try rewrite <- app_assoc; eauto using @exp_match.
 Qed.
-
-(** The (weak) pumping lemma itself says that, if [s =~ re] and if the
-    length of [s] is at least the pumping constant of [re], then [s]
-    can be split into three substrings [s1 ++ s2 ++ s3] in such a way
-    that [s2] can be repeated any number of times and the result, when
-    combined with [s1] and [s3], will still match [re].  Since [s2] is
-    also guaranteed not to be the empty string, this gives us
-    a (constructive!) way to generate strings matching [re] that are
-    as long as we like. *)
 
 Lemma weak_pumping : forall T (re : reg_exp T) s,
   s =~ re ->
@@ -511,26 +415,33 @@ Lemma weak_pumping : forall T (re : reg_exp T) s,
     s = s1 ++ s2 ++ s3 /\
     s2 <> [] /\
     forall m, s1 ++ napp m s2 ++ s3 =~ re.
-
-(** Complete the proof below. Several of the lemmas about [le] that
-    were in an optional exercise earlier in this chapter may also be
-    useful. *)
 Proof.
-  intros T re s Hmatch.
-  induction Hmatch
-    as [ | x | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
-       | s1 re1 re2 Hmatch IH | re1 s2 re2 Hmatch IH
-       | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2 ].
-  - (* MEmpty *)
-    simpl. intros contra. inversion contra.
-  (* FILL IN HERE *) Admitted.
+  intros T re s H.
+  induction H
+    as [ | | s1 re1 s2 re2 H1 IH1 H2 IH2
+       | s1 re1 re2 H IH | re1 s2 re2 H IH
+       | | s1 s2 re H1 IH1 H2 IH2 ]; intros Hp.
+  1, 2, 6 : inversion Hp. 1 : inversion H0.
+  1 : apply pumping_constant_0_false in H0; contradiction.
+  1, 4 : rewrite app_length in Hp.
+  2 : (* MAppStar *) {
+    destruct s1; eauto.
+    exists [], (x :: s1), s2; repeat split; eauto using napp_star; discriminate.
+  }
+  (* Others : MApp, MUnionL, MUnionR *)
+  1 : apply add_le_cases in Hp as [Hp | Hp]; [apply IH1 in Hp | apply IH2 in Hp].
+  3 : apply plus_le in Hp as [Hp _]; apply IH in Hp.
+  4 : apply plus_le in Hp as [_ Hp]; apply IH in Hp.
+  all : destruct Hp as [s [s3 [s4 [Hp [? Hm]]]]]; rewrite Hp.
+  1 : exists s, s3, (s4 ++ s2). 2 : exists (s1 ++ s), s3, s4.
+  3, 4 : exists s, s3, s4.
+  all : repeat split; repeat rewrite app_assoc; eauto; intros m; specialize Hm with m.
+  1 : repeat rewrite app_assoc in *. 2 : rewrite <- app_assoc.
+  all : eauto using @exp_match.
+Qed.
 (** [] *)
 
-(** **** Exercise: 5 stars, advanced, optional (pumping)
-
-    Now here is the usual version of the pumping lemma. In addition to
-    requiring that [s2 <> []], it also requires that [length s1 +
-    length s2 <= pumping_constant re]. *)
+(** **** Exercise: 5 stars, advanced, optional (pumping) *)
 
 Lemma pumping : forall T (re : reg_exp T) s,
   s =~ re ->
@@ -558,129 +469,26 @@ End Pumping.
 (* ################################################################# *)
 (** * Case Study: Improving Reflection *)
 
-(** We've seen in the [Logic] chapter that we often need to
-    relate boolean computations to statements in [Prop].  But
-    performing this conversion as we did there can result in
-    tedious proof scripts.  Consider the proof of the following
-    theorem: *)
-
-Theorem filter_not_empty_In : forall n l,
-  filter (fun x => n =? x) l <> [] ->
-  In n l.
-Proof.
-  intros n l. induction l as [|m l' IHl'].
-  - (* l = [] *)
-    simpl. intros H. apply H. reflexivity.
-  - (* l = m :: l' *)
-    simpl. destruct (n =? m) eqn:H.
-    + (* n =? m = true *)
-      intros _. rewrite eqb_eq in H. rewrite H.
-      left. reflexivity.
-    + (* n =? m = false *)
-      intros H'. right. apply IHl'. apply H'.
-Qed.
-
-(** In the first branch after [destruct], we explicitly apply
-    the [eqb_eq] lemma to the equation generated by
-    destructing [n =? m], to convert the assumption [n =? m
-    = true] into the assumption [n = m]; then we had to [rewrite]
-    using this assumption to complete the case. *)
-
-(** We can streamline this sort of reasoning by defining an inductive
-    proposition that yields a better case-analysis principle for [n =?
-    m].  Instead of generating the assumption [(n =? m) = true], which
-    usually requires some massaging before we can use it, this
-    principle gives us right away the assumption we really need: [n =
-    m].
-
-    Following the terminology introduced in [Logic], we call this
-    the "reflection principle for equality on numbers," and we say
-    that the boolean [n =? m] is _reflected in_ the proposition [n =
-    m]. *)
-
 Inductive reflect (P : Prop) : bool -> Prop :=
   | ReflectT (H :   P) : reflect P true
   | ReflectF (H : ~ P) : reflect P false.
 
-(** The [reflect] property takes two arguments: a proposition
-    [P] and a boolean [b].  It states that the property [P]
-    _reflects_ (intuitively, is equivalent to) the boolean [b]: that
-    is, [P] holds if and only if [b = true].
-
-    To see this, notice that, by definition, the only way we can
-    produce evidence for [reflect P true] is by showing [P] and then
-    using the [ReflectT] constructor.  If we invert this statement,
-    this means that we can extract evidence for [P] from a proof of
-    [reflect P true].
-
-    Similarly, the only way to show [reflect P false] is by tagging
-    evidence for [~ P] with the [ReflectF] constructor. *)
-
-(** To put this observation to work, we first prove that the
-    statements [P <-> b = true] and [reflect P b] are indeed
-    equivalent.  First, the left-to-right implication: *)
-
 Theorem iff_reflect : forall P b, (P <-> b = true) -> reflect P b.
-Proof.
-  (* WORKED IN CLASS *)
-  intros P b H. destruct b eqn:Eb.
-  - apply ReflectT. rewrite H. reflexivity.
-  - apply ReflectF. rewrite H. intros H'. discriminate.
-Qed.
-
-(** Now you prove the right-to-left implication: *)
+Proof. intros P b H. destruct b; econstructor; rewrite H; eauto; discriminate. Qed.
 
 (** **** Exercise: 2 stars, standard, especially useful (reflect_iff) *)
 Theorem reflect_iff : forall P b, reflect P b -> (P <-> b = true).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P b H. inversion H; split; eauto; intros.
+  * contradiction.
+  * discriminate.
+Qed.
 (** [] *)
 
-(** We can think of [reflect] as a kind of variant of the usual "if
-    and only if" connective; the advantage of [reflect] is that, by
-    destructing a hypothesis or lemma of the form [reflect P b], we
-    can perform case analysis on [b] while _at the same time_
-    generating appropriate hypothesis in the two branches ([P] in the
-    first subgoal and [~ P] in the second). *)
-
-(** Let's use [reflect] to produce a smoother proof of
-    [filter_not_empty_In].
-
-    We begin by recasting the [eqb_eq] lemma in terms of [reflect]: *)
-
 Lemma eqbP : forall n m, reflect (n = m) (n =? m).
-Proof.
-  intros n m. apply iff_reflect. rewrite eqb_eq. reflexivity.
-Qed.
+Proof. intros n m. apply iff_reflect. rewrite eqb_eq. reflexivity. Qed.
 
-(** The proof of [filter_not_empty_In] now goes as follows.  Notice
-    how the calls to [destruct] and [rewrite] in the earlier proof of
-    this theorem are combined here into a single call to
-    [destruct]. *)
-
-(** (To see this clearly, execute the two proofs of
-    [filter_not_empty_In] with Coq and observe the differences in
-    proof state at the beginning of the first case of the
-    [destruct].) *)
-
-Theorem filter_not_empty_In' : forall n l,
-  filter (fun x => n =? x) l <> [] ->
-  In n l.
-Proof.
-  intros n l. induction l as [|m l' IHl'].
-  - (* l = [] *)
-    simpl. intros H. apply H. reflexivity.
-  - (* l = m :: l' *)
-    simpl. destruct (eqbP n m) as [H | H].
-    + (* n = m *)
-      intros _. rewrite H. left. reflexivity.
-    + (* n <> m *)
-      intros H'. right. apply IHl'. apply H'.
-Qed.
-
-(** **** Exercise: 3 stars, standard, especially useful (eqbP_practice)
-
-    Use [eqbP] as above to prove the following: *)
+(** **** Exercise: 3 stars, standard, especially useful (eqbP_practice) *)
 
 Fixpoint count n l :=
   match l with
@@ -688,120 +496,54 @@ Fixpoint count n l :=
   | m :: l' => (if n =? m then 1 else 0) + count n l'
   end.
 
-Theorem eqbP_practice : forall n l,
-  count n l = 0 -> ~(In n l).
+Theorem eqbP_practice : forall n l, count n l = 0 -> ~(In n l).
 Proof.
-  intros n l Hcount. induction l as [| m l' IHl'].
-  (* FILL IN HERE *) Admitted.
+  intros n l Hcount. induction l as [| m l' IHl']; intro H.
+  - inversion H.
+  - simpl in *. destruct H, (n =? m) eqn:Eqb; try discriminate.
+    + symmetry in H. apply (reflect_iff _ _ (eqbP _ _)) in H.
+      rewrite H in *; discriminate.
+    + apply IHl' in Hcount; contradiction.
+Qed.
 (** [] *)
-
-(** This small example shows reflection giving us a small gain in
-    convenience; in larger developments, using [reflect] consistently
-    can often lead to noticeably shorter and clearer proof scripts.
-    We'll see many more examples in later chapters and in _Programming
-    Language Foundations_.
-
-    This use of [reflect] was popularized by _SSReflect_, a Coq
-    library that has been used to formalize important results in
-    mathematics, including the 4-color theorem and the Feit-Thompson
-    theorem.  The name SSReflect stands for _small-scale reflection_,
-    i.e., the pervasive use of reflection to simplify small proof
-    steps by turning them into boolean computations. *)
 
 (* ################################################################# *)
 (** * Additional Exercises *)
 
-(** **** Exercise: 3 stars, standard, especially useful (nostutter_defn)
-
-    Formulating inductive definitions of properties is an important
-    skill you'll need in this course.  Try to solve this exercise
-    without any help.
-
-    We say that a list "stutters" if it repeats the same element
-    consecutively.  (This is different from not containing duplicates:
-    the sequence [[1;4;1]] has two occurrences of the element [1] but
-    does not stutter.)  The property "[nostutter mylist]" means that
-    [mylist] does not stutter.  Formulate an inductive definition for
-    [nostutter]. *)
+(** **** Exercise: 3 stars, standard, especially useful (nostutter_defn) *)
 
 Inductive nostutter {X:Type} : list X -> Prop :=
- (* FILL IN HERE *)
-.
-(** Make sure each of these tests succeeds, but feel free to change
-    the suggested proof (in comments) if the given one doesn't work
-    for you.  Your definition might be different from ours and still
-    be correct, in which case the examples might need a different
-    proof.  (You'll notice that the suggested proofs use a number of
-    tactics we haven't talked about, to make them more robust to
-    different possible ways of defining [nostutter].  You can probably
-    just uncomment and use them as-is, but you can also prove each
-    example with more basic tactics.)  *)
+  | NS_nil : nostutter []
+  | NS_one x : nostutter [x]
+  | NS_many x y l (NE : x <> y) (NS : nostutter (y :: l)) : nostutter (x :: y :: l).
 
 Example test_nostutter_1: nostutter [3;1;4;1;5;6].
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; apply eqb_neq; auto.
-  Qed.
-*)
+Proof. repeat constructor; apply eqb_neq; auto. Qed.
 
 Example test_nostutter_2:  nostutter (@nil nat).
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; apply eqb_neq; auto.
-  Qed.
-*)
+Proof. repeat constructor; apply eqb_neq; auto. Qed.
 
 Example test_nostutter_3:  nostutter [5].
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; auto. Qed.
-*)
+Proof. repeat constructor; auto. Qed.
 
 Example test_nostutter_4:      not (nostutter [3;1;1;4]).
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. intro.
+Proof. intro.
   repeat match goal with
     h: nostutter _ |- _ => inversion h; clear h; subst
   end.
-  contradiction; auto. Qed.
-*)
+  contradiction; auto.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_nostutter : option (nat*string) := None.
 (** [] *)
 
-(** **** Exercise: 4 stars, advanced (filter_challenge)
-
-    Let's prove that our definition of [filter] from the [Poly]
-    chapter matches an abstract specification.  Here is the
-    specification, written out informally in English:
-
-    A list [l] is an "in-order merge" of [l1] and [l2] if it contains
-    all the same elements as [l1] and [l2], in the same order as [l1]
-    and [l2], but possibly interleaved.  For example,
-
-    [1;4;6;2;3]
-
-    is an in-order merge of
-
-    [1;6;2]
-
-    and
-
-    [4;3].
-
-    Now, suppose we have a set [X], a function [test: X->bool], and a
-    list [l] of type [list X].  Suppose further that [l] is an
-    in-order merge of two lists, [l1] and [l2], such that every item
-    in [l1] satisfies [test] and no item in [l2] satisfies test.  Then
-    [filter test l = l1].
-
-    First define what it means for one list to be a merge of two
-    others.  Do this with an inductive relation, not a [Fixpoint].  *)
+(** **** Exercise: 4 stars, advanced (filter_challenge) *)
 
 Inductive merge {X:Type} : list X -> list X -> list X -> Prop :=
-(* FILL IN HERE *)
+  | ME : merge [] [] []
+  | ML x l1 l2 l (M : merge l1 l2 l) : merge (x :: l1) l2 (x :: l)
+  | MR x l1 l2 l (M : merge l1 l2 l) : merge l1 (x :: l2) (x :: l)
 .
 
 Theorem merge_filter : forall (X : Set) (test: X->bool) (l l1 l2 : list X),
@@ -810,158 +552,156 @@ Theorem merge_filter : forall (X : Set) (test: X->bool) (l l1 l2 : list X),
   All (fun n => test n = false) l2 ->
   filter test l = l1.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
-(* FILL IN HERE *)
-
+  intros X test l l1 l2 Hm H1 H2. induction Hm; eauto; simpl in *.
+  1 : destruct H1 as [H H1]. 2 : destruct H2 as [H H2].
+  all : rewrite H; f_equal; eauto.
+Qed.
 (** [] *)
 
-(** **** Exercise: 5 stars, advanced, optional (filter_challenge_2)
-
-    A different way to characterize the behavior of [filter] goes like
-    this: Among all subsequences of [l] with the property that [test]
-    evaluates to [true] on all their members, [filter test l] is the
-    longest.  Formalize this claim and prove it. *)
-
-(* FILL IN HERE
-
-    [] *)
-
-(** **** Exercise: 4 stars, standard, optional (palindromes)
-
-    A palindrome is a sequence that reads the same backwards as
-    forwards.
-
-    - Define an inductive proposition [pal] on [list X] that
-      captures what it means to be a palindrome. (Hint: You'll need
-      three cases.  Your definition should be based on the structure
-      of the list; just having a single constructor like
-
-        c : forall l, l = rev l -> pal l
-
-      may seem obvious, but will not work very well.)
-
-    - Prove ([pal_app_rev]) that
-
-       forall l, pal (l ++ rev l).
-
-    - Prove ([pal_rev] that)
-
-       forall l, pal l -> l = rev l.
-*)
+(** **** Exercise: 4 stars, standard, optional (palindromes) *)
 
 Inductive pal {X:Type} : list X -> Prop :=
-(* FILL IN HERE *)
-.
+  | P0 : pal []
+  | P1 x : pal [x]
+  | Pm x l (P : pal l) : pal (x :: l ++ [x]).
 
-Theorem pal_app_rev : forall (X:Type) (l : list X),
-  pal (l ++ (rev l)).
+Theorem pal_app_rev : forall (X:Type) (l : list X), pal (l ++ (rev l)).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction l.
+  2 : simpl; rewrite app_assoc.
+  all : eauto using @pal.
+Qed. 
 
 Theorem pal_rev : forall (X:Type) (l: list X) , pal l -> l = rev l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction H; eauto.
+  repeat rewrite rev_app_distr. simpl.
+  rewrite rev_app_distr, <- app_assoc, <- IHpal. eauto.
+Qed.
 (** [] *)
 
-(** **** Exercise: 5 stars, standard, optional (palindrome_converse)
+(** **** Exercise: 5 stars, standard, optional (palindrome_converse) *)
 
-    Again, the converse direction is significantly more difficult, due
-    to the lack of evidence.  Using your definition of [pal] from the
-    previous exercise, prove that
+Theorem app_x_r : forall X l1 l2 (x1 x2 : X),
+  l1 ++ [x1] = l2 ++ [x2] -> l1 = l2 /\ x1 = x2.
+Proof.
+  intros.
+  apply (f_equal rev) in H. repeat rewrite rev_app_distr in H.
+  simpl in *. injection H as H1 H2.
+  apply (f_equal rev) in H2. repeat rewrite rev_involutive in H2.
+  eauto.
+Qed.
 
-     forall l, l = rev l -> pal l.
-*)
+Theorem rev_length : forall X (l : list X), length (rev l) = length l.
+Proof.
+  induction l; eauto.
+  simpl. try rewrite app_length, IHl. simpl. nia.
+Qed.
 
 Theorem palindrome_converse: forall {X: Type} (l: list X),
     l = rev l -> pal l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X.
+
+  assert (STR: forall n (l: list X), length l <= n -> l = rev l -> pal l).
+  {
+    induction n; intros [|x revl] Hl Hr; eauto using @pal; symmetry in Hr.
+    - inversion Hl.
+    - simpl in *. apply Sn_le_Sm__n_le_m in Hl.
+      remember (rev revl) as l eqn:Eql.
+      apply (f_equal rev) in Eql; rewrite rev_involutive in *.
+      subst revl; rewrite rev_length in *.
+      destruct l; eauto using @pal.
+      simpl in *. injection Hr as ? Hr; subst x0.
+      apply app_x_r in Hr as [Hr _]. apply n_lt_m__n_le_m in Hl.
+      rewrite <- Hr; apply IHn in Hr as Hr'; eauto using @pal.
+  }
+
+  intros l. specialize STR with (length l) l. eauto.
+Qed.
 (** [] *)
 
-(** **** Exercise: 4 stars, advanced, optional (NoDup)
+(** **** Exercise: 4 stars, advanced, optional (NoDup) *)
 
-    Recall the definition of the [In] property from the [Logic]
-    chapter, which asserts that a value [x] appears at least once in a
-    list [l]: *)
+Inductive disjoint {X : Type} : list X -> list X -> Prop :=
+  | Dnil : disjoint [] []
+  | Daddl x l1 l2 (Hnin : ~ In x l2) (D : disjoint l1 l2) : disjoint (x :: l1) l2
+  | Daddr x l1 l2 (Hnin : ~ In x l1) (D : disjoint l1 l2) : disjoint l1 (x :: l2).
 
-(* Fixpoint In (A : Type) (x : A) (l : list A) : Prop :=
-   match l with
-   | [] => False
-   | x' :: l' => x' = x \/ In A x l'
-   end *)
+Inductive NoDup {X : Type} : list X -> Prop :=
+  | NDnil : NoDup []
+  | NDcons x l (Hnin : ~ In x l) (ND : NoDup l) : NoDup (x :: l).
 
-(** Your first task is to use [In] to define a proposition [disjoint X
-    l1 l2], which should be provable exactly when [l1] and [l2] are
-    lists (with elements of type X) that have no elements in
-    common. *)
+Theorem disjoint_empty_l : forall X (l : list X), disjoint [] l.
+Proof. induction l; eauto using @disjoint. Qed.
 
-(* FILL IN HERE *)
+Theorem disjoint_empty_r : forall X (l : list X), disjoint l [].
+Proof. induction l; eauto using @disjoint. Qed.
 
-(** Next, use [In] to define an inductive proposition [NoDup X
-    l], which should be provable exactly when [l] is a list (with
-    elements of type [X]) where every member is different from every
-    other.  For example, [NoDup nat [1;2;3;4]] and [NoDup
-    bool []] should be provable, while [NoDup nat [1;2;1]] and
-    [NoDup bool [true;true]] should not be.  *)
-
-(* FILL IN HERE *)
-
-(** Finally, state and prove one or more interesting theorems relating
-    [disjoint], [NoDup] and [++] (list append).  *)
-
-(* FILL IN HERE *)
+Theorem nodup_disjoint : forall X (l l1 l2 : list X),
+  l1 ++ l2 = l -> NoDup l -> disjoint l1 l2.
+Proof.
+  induction l.
+  - intros [] [] Happ H; econstructor; discriminate.
+  - intros [|x1 l1] l2 Happ H; inversion H; subst x0 l0; clear H.
+    + apply disjoint_empty_l.
+    + injection Happ as Hx Hl; subst x1 l.
+      rewrite In_app_iff in Hnin. apply de_morgan_not_or in Hnin as [Hn1 Hn2].
+      eauto using @disjoint.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_NoDup_disjoint_etc : option (nat*string) := None.
 (** [] *)
 
-(** **** Exercise: 4 stars, advanced, optional (pigeonhole_principle)
-
-    The _pigeonhole principle_ states a basic fact about counting: if
-    we distribute more than [n] items into [n] pigeonholes, some
-    pigeonhole must contain at least two items.  As often happens, this
-    apparently trivial fact about numbers requires non-trivial
-    machinery to prove, but we now have enough... *)
-
-(** First prove an easy and useful lemma. *)
+(** **** Exercise: 4 stars, advanced, optional (pigeonhole_principle) *)
 
 Lemma in_split : forall (X:Type) (x:X) (l:list X),
-  In x l ->
-  exists l1 l2, l = l1 ++ x :: l2.
+  In x l -> exists l1 l2, l = l1 ++ x :: l2.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
-(** Now define a property [repeats] such that [repeats X l] asserts
-    that [l] contains at least one repeated element (of type [X]).  *)
+  intros. induction l; try contradiction.
+  destruct H as [Heq|Hin].
+  + subst x0. exists [], l. reflexivity.
+  + apply IHl in Hin as [l1 [l2]]. subst l.
+    exists (x0 :: l1), l2. reflexivity.
+Qed.
 
 Inductive repeats {X:Type} : list X -> Prop :=
-  (* FILL IN HERE *)
-.
+  | Rhd x l (Hin : In x l) : repeats (x :: l)
+  | Rtl x l (R : repeats l) : repeats (x :: l).
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_check_repeats : option (nat*string) := None.
 
-(** Now, here's a way to formalize the pigeonhole principle.  Suppose
-    list [l2] represents a list of pigeonhole labels, and list [l1]
-    represents the labels assigned to a list of items.  If there are
-    more items than labels, at least two items must have the same
-    label -- i.e., list [l1] must contain repeats.
-
-    This proof is much easier if you use the [excluded_middle]
-    hypothesis to show that [In] is decidable, i.e., [forall x l, (In x
-    l) \/ ~ (In x l)].  However, it is also possible to make the proof
-    go through _without_ assuming that [In] is decidable; if you
-    manage to do this, you will not need the [excluded_middle]
-    hypothesis. *)
-Theorem pigeonhole_principle: excluded_middle ->
-  forall (X:Type) (l1  l2:list X),
+Theorem pigeonhole_principle: excluded_middle -> forall (X:Type) (l1  l2:list X),
   (forall x, In x l1 -> In x l2) ->
   length l2 < length l1 ->
   repeats l1.
 Proof.
-  intros EM X l1. induction l1 as [|x l1' IHl1'].
-  (* FILL IN HERE *) Admitted.
+  intros EM; unfold excluded_middle in EM.
+  induction l1 as [|x l1 IH]; intros l2 x_l1_in_l2 Hlength.
+  1 : inversion Hlength.
+  (* l2 is decomposed *)
+  specialize x_l1_in_l2 with x as x_in_x_l1_in_l2;
+  assert (x_in_x_l1 : In x (x :: l1)) by (simpl; eauto);
+  apply x_in_x_l1_in_l2 in x_in_x_l1 as x_in_l2;
+  apply in_split in x_in_l2 as [l3 [l4]]; subst l2;
+  clear x_in_x_l1_in_l2 x_in_x_l1; move Hlength after x_l1_in_l2.
+  (* use excluded middle *)
+  specialize EM with (In x l1) as [|x_nin_l1]; eauto using @repeats.
+  (* final proof *)
+  apply Rtl, (IH (l3 ++ l4)).
+  - intros x' x'_in_l1. apply In_app_iff.
+    (* x' in l1 -> x' in x :: l1 -> x' in l3 ++ x :: l4 *)
+    specialize x_l1_in_l2 with x' as x'_in_x_l1_in_l2;
+    assert (x'_in_x_l1 : In x' (x :: l1)) by (simpl; eauto);
+    apply x'_in_x_l1_in_l2 in x'_in_x_l1 as x'_in_l3_x_l4;
+    clear x'_in_x_l1_in_l2 x'_in_x_l1.
+    (* case analysis *)
+    apply In_app_iff in x'_in_l3_x_l4 as [x'_in_l3 | [Heq |x'_in_l4]];
+    eauto; subst x'; contradiction.
+  - rewrite app_length in *; simpl in *; nia.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1309,5 +1049,3 @@ Theorem regex_match_correct : matches_regex regex_match.
 Proof.
   (* FILL IN HERE *) Admitted.
 (** [] *)
-
-(* 2023-06-10 03:48+09:00 *)

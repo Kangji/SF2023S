@@ -1,14 +1,11 @@
 From LF Require Export Basics.
 
-Ltac nat_ind n := try (induction n as [|n IH]; simpl; try rewrite IH; eauto; fail).
-
 (* ################################################################# *)
 (** * Proof by Induction *)
 
-Theorem add_0_r : forall n:nat, n + 0 = n.
-Proof. nat_ind n. Qed.
+Ltac nat_ind n := try (induction n as [|n IH]; simpl; try rewrite IH; eauto; fail).
 
-Theorem minus_n_n : forall n, minus n n = 0.
+Theorem add_0_r : forall n:nat, n + 0 = n.
 Proof. nat_ind n. Qed.
 
 (** **** Exercise: 2 stars, standard, especially useful (basic_induction) *)
@@ -21,10 +18,10 @@ Proof. nat_ind n. Qed.
 
 Theorem add_comm : forall n m : nat, n + m = m + n.
 Proof.
-  intros; induction n; simpl;
-  [rewrite add_0_r | rewrite IHn, plus_n_Sm]; reflexivity.
+  intros. induction n; simpl.
+  * rewrite add_0_r. reflexivity.
+  * rewrite IHn, plus_n_Sm. reflexivity.
 Qed.
-
 
 Theorem add_assoc : forall n m p : nat, n + (m + p) = (n + m) + p.
 Proof. nat_ind n. Qed.
@@ -53,7 +50,7 @@ Theorem even_S : forall n : nat, even (S n) = negb (even n).
 Proof.
   induction n.
   - reflexivity.
-  - rewrite IHn; simpl; destruct (even n); reflexivity.
+  - rewrite IHn, negb_involutive. reflexivity.
 Qed.
 (** [] *)
 
@@ -90,10 +87,14 @@ Definition manual_grade_for_eqb_refl_informal : option (nat*string) := None.
 (** **** Exercise: 3 stars, standard, especially useful (mul_comm) *)
 
 Theorem add_shuffle3 : forall n m p : nat, n + (m + p) = m + (n + p).
-Proof. lia. Qed.
+Proof. intros. rewrite add_comm, (add_comm n _), add_assoc. reflexivity. Qed.
 
 Theorem mul_comm : forall m n : nat, m * n = n * m.
-Proof. lia. Qed.
+Proof.
+  induction m; intros; simpl.
+  - rewrite mul_0_r. reflexivity.
+  - rewrite add_comm, IHm, mult_n_Sm. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (plus_leb_compat_l) *)
@@ -127,18 +128,27 @@ Proof. intros [] []; reflexivity. Qed.
 
 Theorem mult_plus_distr_r : forall n m p : nat,
   (n + m) * p = (n * p) + (m * p).
-Proof. lia. Qed.
+Proof.
+  induction p.
+  * repeat rewrite mul_0_r. reflexivity.
+  * rewrite <- mult_n_Sm, IHp, <- add_assoc, (add_comm n), (add_assoc (m * p)).
+    rewrite mult_n_Sm, (add_comm _ n), add_assoc, mult_n_Sm. reflexivity.
+Qed.
 
 Theorem mult_assoc : forall n m p : nat,
   n * (m * p) = (n * m) * p.
-Proof. lia. Qed.
+Proof.
+  intros; induction n.
+  * reflexivity.
+  * simpl. rewrite IHn, <- mult_plus_distr_r. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (add_shuffle3') *)
 
 Theorem add_shuffle3' : forall n m p : nat,
   n + (m + p) = m + (n + p).
-Proof. lia. Qed.
+Proof. apply add_shuffle3. Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -204,6 +214,9 @@ Definition double_bin (b:bin) : bin :=
   | n => B0 n
   end.
 
+Example double_bin_zero : double_bin Z = Z.
+Proof. reflexivity. Qed.
+
 Lemma double_incr_bin : forall b,
   double_bin (incr b) = incr (incr (double_bin b)).
 Proof. intros []; reflexivity. Qed.
@@ -227,5 +240,3 @@ Proof.
   try (simpl; rewrite IHn; rewrite <- double_incr_bin); reflexivity.
 Qed.
 (** [] *)
-
-(* 2023-06-09 04:01+09:00 *)

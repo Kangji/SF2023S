@@ -204,5 +204,3 @@ Proof.
   subst. destruct pf1, pf2. reflexivity.
 Qed.
 (** [] *)
-
-(* 2023-06-10 04:42+09:00 *)

@@ -1,5 +1,4 @@
 From Coq Require Export String.
-From Coq Require Export Lia.
 
 (* ================================================================= *)
 (** ** Booleans *)
@@ -109,12 +108,6 @@ Fixpoint even (n:nat) : bool :=
 
 Definition odd (n:nat) : bool := negb (even n).
 
-Fixpoint exp (base power : nat) : nat :=
-  match power with
-  | O => S O
-  | S p => mult base (exp base p)
-  end.
-
 (** **** Exercise: 1 star, standard (factorial) *)
 
 Fixpoint factorial (n:nat) : nat :=
@@ -128,16 +121,6 @@ Proof. reflexivity. Qed.
 Example test_factorial2:          (factorial 5) = (mult 10 12).
 Proof. reflexivity. Qed.
 (** [] *)
-
-Notation "x + y" := (plus x y)
-                       (at level 50, left associativity)
-                       : nat_scope.
-Notation "x - y" := (minus x y)
-                       (at level 50, left associativity)
-                       : nat_scope.
-Notation "x * y" := (mult x y)
-                       (at level 40, left associativity)
-                       : nat_scope.
 
 Fixpoint eqb (n m : nat) : bool :=
   match n, m with
@@ -178,10 +161,10 @@ Theorem plus_O_n : forall n : nat, 0 + n = n.
 Proof. reflexivity. Qed.
 
 Theorem plus_1_l : forall n:nat, 1 + n = S n.
-Proof. reflexivity.  Qed.
+Proof. reflexivity. Qed.
 
 Theorem mult_0_l : forall n:nat, 0 * n = 0.
-Proof. reflexivity.  Qed.
+Proof. reflexivity. Qed.
 
 (* ################################################################# *)
 (** * Proof by Rewriting *)
@@ -199,7 +182,7 @@ Proof. intros. rewrite H, H0. reflexivity. Qed.
 (** **** Exercise: 1 star, standard (mult_n_1) *)
 
 Theorem mult_n_1 : forall p : nat, p * 1 = p.
-Proof. nia. Qed.
+Proof. intros. rewrite <- mult_n_Sm, <- mult_n_O. reflexivity. Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -217,7 +200,7 @@ Proof. intros [] [] []; reflexivity. Qed.
 (** **** Exercise: 2 stars, standard (andb_true_elim2) *)
 
 Theorem andb_true_elim2 : forall b c : bool, andb b c = true -> c = true.
-Proof. intros [] c; simpl; eauto; discriminate. Qed.
+Proof. intros [] [] ?; simpl in *; try rewrite H; reflexivity. Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard (zero_nbeq_plus_1) *)
@@ -337,7 +320,7 @@ Definition lower_letter (l : letter) : letter :=
 Theorem lower_letter_lowers: forall (l : letter),
   letter_comparison F l = Lt ->
   letter_comparison (lower_letter l) l = Lt.
-Proof. intros []; eauto. Qed.
+Proof. intros [] H; simpl in *; try rewrite H; reflexivity. Qed.
 
 (** [] *)
 
@@ -389,7 +372,7 @@ Proof. reflexivity. Qed.
 Theorem lower_grade_lowers : forall (g : grade),
   grade_comparison (Grade F Minus) g = Lt ->
   grade_comparison (lower_grade g) g = Lt.
-Proof. intros [[] []]; eauto. Qed.
+Proof. intros [[] []] H; simpl in *; try rewrite H; reflexivity. Qed.
 
 (** [] *)
 
@@ -459,5 +442,3 @@ Example test_bin_incr6 : bin_to_nat (incr (incr (B1 Z))) = 2 + bin_to_nat (B1 Z)
 Proof. reflexivity. Qed.
 
 (** [] *)
-
-(* 2023-06-09 03:24+09:00 *)
