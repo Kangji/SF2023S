@@ -1,0 +1,13 @@
+Axiom
+admit
+Admitted
+Variable
+Parameter
+tauto
+intuition
+firstorder
+omega
+romega
+micromega
+lia
+psatz

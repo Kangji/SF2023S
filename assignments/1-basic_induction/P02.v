@@ -9,10 +9,6 @@ Print xorb.
 Theorem xorb_to_andb : forall b c : bool,
   xorb b c = true -> andb b c = false.
 Proof.
-  intros [] [] H.
-  - rewrite <- H. reflexivity.
-  - reflexivity.
-  - reflexivity.
-  - reflexivity.
+  intros [] [] H; try rewrite <- H; reflexivity.
 Qed.
 

@@ -9,6 +9,5 @@ Proof.
   - left. reflexivity.
   - destruct m.
     * right. reflexivity.
-    * simpl in H.
-      generalize dependent (m + n * S m). discriminate.
+    * simpl in H. inversion H.
 Qed.
