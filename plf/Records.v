@@ -5,60 +5,10 @@ From Coq Require Import Strings.String.
 From PLF Require Import Maps.
 From PLF Require Import Smallstep.
 From PLF Require Import Stlc.
+Require Import List.
 
 (* ################################################################# *)
 (** * Adding Records *)
-
-(** We saw in chapter [MoreStlc] how records can be treated as just
-    syntactic sugar for nested uses of products.  This is OK for
-    simple examples, but the encoding is informal (in reality, if we
-    actually treated records this way, it would be carried out in the
-    parser, which we are eliding here), and anyway it is not very
-    efficient.  So it is also interesting to see how records can be
-    treated as first-class citizens of the language.  This chapter
-    shows how.
-
-    Recall the informal definitions we gave before: *)
-
-(**
-    Syntax:
-
-       t ::=                          Terms:
-           | {i=t, ..., i=t}             record
-           | t.i                         projection
-           | ...
-
-       v ::=                          Values:
-           | {i=v, ..., i=v}             record value
-           | ...
-
-       T ::=                          Types:
-           | {i:T, ..., i:T}             record type
-           | ...
-
-   Reduction:
-
-                               tn ==> tn'
-  -------------------------------------------------------------------- (ST_Rcd)
-  {i1=v1, ..., im=vm, in=tn, ...} ==> {i1=v1, ..., im=vm, in=tn', ...}
-
-                                 t1 ==> t1'
-                               --------------                        (ST_Proj1)
-                               t1.i ==> t1'.i
-
-                          -------------------------                (ST_ProjRcd)
-                          {..., i=vi, ...}.i ==> vi
-
-   Typing:
-
-              Gamma |-- t1 : T1     ...     Gamma |-- tn : Tn
-             ---------------------------------------------------        (T_Rcd)
-             Gamma |-- {i1=t1, ..., in=tn} : {i1:T1, ..., in:Tn}
-
-                       Gamma |-- t0 : {..., i:Ti, ...}
-                       -------------------------------                  (T_Proj)
-                            Gamma |-- t0.i : Ti
-*)
 
 (* ################################################################# *)
 (** * Formalizing Records *)
@@ -67,9 +17,6 @@ Module STLCExtendedRecords.
 
 (* ----------------------------------------------------------------- *)
 (** *** Syntax and Operational Semantics *)
-
-(** The most obvious way to formalize the syntax of record types would
-    be this: *)
 
 Module FirstTry.
 
@@ -80,44 +27,29 @@ Inductive ty : Type :=
   | Arrow    : ty -> ty -> ty
   | TRcd     : (alist ty) -> ty.
 
-(** Unfortunately, we encounter here a limitation in Coq: this type
-    does not automatically give us the induction principle we expect:
-    the induction hypothesis in the [TRcd] case doesn't give us
-    any information about the [ty] elements of the list, making it
-    useless for the proofs we want to do.  *)
-
-(* Check ty_ind.
-   ====>
-    ty_ind :
-      forall P : ty -> Prop,
-        (forall i : id, P (Base i)) ->
-        (forall t : ty, P t -> forall t0 : ty, P t0
-                            -> P (Arrow t t0)) ->
-        (forall a : alist ty, P (TRcd a)) ->    (* ??? *)
-        forall t : ty, P t
-*)
+Lemma ty_ind' : forall P : ty -> Prop,
+  (forall s : string, P (Base s)) ->
+  (forall t : ty, P t -> forall t0 : ty, P t0 -> P (Arrow t t0)) ->
+  (forall a : alist ty, (forall it, In it a -> P (snd it)) -> P (TRcd a)) -> forall t : ty, P t.
+Proof.
+intros. revert t. fix self 1.
+intros. destruct t.
+- apply H.
+- apply H0; apply self.
+- apply H1. induction a; intros.
+ + inversion H2.
+ + inversion H2.
+   * rewrite <- H3. apply self.
+   * eapply IHa. apply H3.      
+Qed.
 
 End FirstTry.
-
-(** It is possible to get a better induction principle out of Coq, but
-    the details of how this is done are not very pretty, and the
-    principle we obtain is not as intuitive to use as the ones Coq
-    generates automatically for simple [Inductive] definitions.
-
-    Fortunately, there is a different way of formalizing records that
-    is, in some ways, even simpler and more natural: instead of using
-    the standard Coq [list] type, we can essentially incorporate its
-    constructors ("nil" and "cons") in the syntax of our types. *)
 
 Inductive ty : Type :=
   | Ty_Base : string -> ty
   | Ty_Arrow : ty -> ty -> ty
   | Ty_RNil : ty
   | Ty_RCons : string -> ty -> ty -> ty.
-
-(** Similarly, at the level of terms, we have constructors [trnil],
-    for the empty record, and [rcons], which adds a single field to
-    the front of a list of fields. *)
 
 Inductive tm : Type :=
   | tm_var : string -> tm
@@ -168,42 +100,16 @@ Notation k := "k".
 Notation i1 := "i1".
 Notation i2 := "i2".
 
-(** [{ i1:A }] *)
-
-(* Check (RCons i1 A RNil). *)
-
-(** [{ i1:A->B, i2:A }] *)
-
-(* Check (RCons i1 (Arrow A B)
-           (RCons i2 A RNil)). *)
-
 (* ----------------------------------------------------------------- *)
 (** *** Well-Formedness *)
 
-(** One issue with generalizing the abstract syntax for records from
-    lists to the nil/cons presentation is that it introduces the
-    possibility of writing strange types like this... *)
-
 Definition weird_type := <{{  a : A  :: B }}>.
-
-(** where the "tail" of a record type is not actually a record type! *)
-
-(** We'll structure our typing judgement so that no ill-formed types
-    like [weird_type] are ever assigned to terms.  To support this, we
-    define predicates [record_ty] and [record_tm], which identify
-    record types and terms, and [well_formed_ty] which rules out the
-    ill-formed types. *)
-
-(** First, a type is a record type if it is built with just [RNil]
-    and [RCons] at the outermost level. *)
 
 Inductive record_ty : ty -> Prop :=
   | RTnil :
         record_ty <{{ nil }}>
   | RTcons : forall i T1 T2,
         record_ty <{{ i : T1 :: T2 }}>.
-
-(** With this, we can define well-formed types. *)
 
 Inductive well_formed_ty : ty -> Prop :=
   | wfBase : forall (i : string),
@@ -222,19 +128,6 @@ Inductive well_formed_ty : ty -> Prop :=
 
 Hint Constructors record_ty well_formed_ty : core.
 
-(** Note that [record_ty] is not recursive -- it just checks the
-    outermost constructor.  The [well_formed_ty] property, on the
-    other hand, verifies that the whole type is well formed in the
-    sense that the tail of every record (the second argument to
-    [RCons]) is a record.
-
-    Of course, we should also be concerned about ill-formed terms, not
-    just types; but typechecking can rule those out without the help
-    of an extra [well_formed_tm] definition because it already
-    examines the structure of terms.  All we need is an analog of
-    [record_ty] saying that a term is a record term if it is built
-    with [trnil] and [rcons]. *)
-
 Inductive record_tm : tm -> Prop :=
   | rtnil :
         record_tm <{ nil }>
@@ -245,8 +138,6 @@ Hint Constructors record_tm : core.
 
 (* ----------------------------------------------------------------- *)
 (** *** Substitution *)
-
-(** Substitution extends easily. *)
 
 Reserved Notation "'[' x ':=' s ']' t" (in custom stlc at level 20, x constr).
 
@@ -271,8 +162,6 @@ where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc).
 (* ----------------------------------------------------------------- *)
 (** *** Reduction *)
 
-(** A record is a value if all of its fields are. *)
-
 Inductive value : tm -> Prop :=
   | v_abs : forall x T2 t1,
       value  <{ \ x : T2, t1 }>
@@ -284,17 +173,11 @@ Inductive value : tm -> Prop :=
 
 Hint Constructors value : core.
 
-(** To define reduction, we'll need a utility function for extracting
-    one field from record term: *)
-
 Fixpoint tlookup (i:string) (tr:tm) : option tm :=
   match tr with
   | <{ i' := t :: tr'}> => if String.eqb i i' then Some t else tlookup i tr'
   | _ => None
   end.
-
-(** The [step] function uses this term-level lookup function in the
-    projection rule. *)
 
 Reserved Notation "t '-->' t'" (at level 40).
 
@@ -333,27 +216,6 @@ Hint Constructors step : core.
 
 (* ----------------------------------------------------------------- *)
 (** *** Typing *)
-
-(** Next we define the typing rules.  These are nearly direct
-    transcriptions of the inference rules shown above: the only
-    significant difference is the use of [well_formed_ty].  In the
-    informal presentation we used a grammar that only allowed
-    well-formed record types, so we didn't have to add a separate
-    check.
-
-    One sanity condition that we'd like to maintain is that, whenever
-    [has_type Gamma t T] holds, will also be the case that
-    [well_formed_ty T], so that [has_type] never assigns ill-formed
-    types to terms.  In fact, we prove this theorem below.  However,
-    we don't want to clutter the definition of [has_type] with
-    unnecessary uses of [well_formed_ty].  Instead, we place
-    [well_formed_ty] checks only where needed: where an inductive call
-    to [has_type] won't already be checking the well-formedness of a
-    type.  For example, we check [well_formed_ty T] in the [T_Var]
-    case, because there is no inductive [has_type] call that would
-    enforce this.  Similarly, in the [T_Abs] case, we require a proof
-    of [well_formed_ty T11] because the inductive call to [has_type]
-    only guarantees that [T12] is well-formed. *)
 
 Fixpoint Tlookup (i:string) (Tr:ty) : option ty :=
   match Tr with
@@ -450,7 +312,7 @@ Lemma wf_rcd_lookup : forall i T Ti,
   well_formed_ty Ti.
 Proof with eauto.
   intros i T.
-  induction T; intros; try solve_by_invert.
+  induction T; intros; try sinv.
   - (* RCons *)
     inversion H. subst. unfold Tlookup in H0.
     destruct (String.eqb i s)...
@@ -520,7 +382,7 @@ Lemma lookup_field_in_value : forall v T i Ti,
 Proof with eauto.
   intros v T i Ti Hval Htyp Hget.
   remember empty as Gamma.
-  induction Htyp; subst; try solve_by_invert...
+  induction Htyp; subst; try sinv...
   - (* T_RCons *)
     simpl in Hget. simpl. destruct (String.eqb i i0).
     + (* i is first *)
@@ -570,7 +432,7 @@ Proof with eauto.
          [t1 = abs x T11 t12], since abstractions are the only
          values that can have an arrow type.  But
          [(abs x T11 t12) t2 --> [x:=t2]t12] by [ST_AppAbs]. *)
-        inversion H; subst; try solve_by_invert.
+        inversion H; subst; try sinv.
         exists <{ [x:=t2]t0 }>...
       * (* t2 steps *)
         (* If [t1] is a value and [t2 --> t2'], then

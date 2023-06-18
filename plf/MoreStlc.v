@@ -10,810 +10,29 @@ Set Default Goal Selector "!".
 (* ################################################################# *)
 (** * Simple Extensions to STLC *)
 
-(** The simply typed lambda-calculus has enough structure to make its
-    theoretical properties interesting, but it is not much of a
-    programming language!
-
-    In this chapter, we begin to close the gap with real-world
-    languages by introducing a number of familiar features that have
-    straightforward treatments at the level of typing. *)
-
 (* ================================================================= *)
 (** ** Numbers *)
-
-(** As we saw in exercise [stlc_arith] at the end of the [StlcProp]
-    chapter, adding types, constants, and primitive operations for
-    natural numbers is easy -- basically just a matter of combining
-    the [Types] and [Stlc] chapters.  Adding more realistic
-    numeric types like machine integers and floats is also
-    straightforward, though of course the specifications of the
-    numeric primitives become more fiddly. *)
 
 (* ================================================================= *)
 (** ** Let Bindings *)
 
-(** When writing a complex expression, it is useful to be able
-    to give names to some of its subexpressions to avoid repetition
-    and increase readability.  Most languages provide one or more ways
-    of doing this.  In OCaml (and Coq), for example, we can write [let
-    x=t1 in t2] to mean "reduce the expression [t1] to a value and
-    bind the name [x] to this value while reducing [t2]."
-
-    Our [let]-binder follows OCaml in choosing a standard
-    _call-by-value_ evaluation order, where the [let]-bound term must
-    be fully reduced before reduction of the [let]-body can begin.
-    The typing rule [T_Let] tells us that the type of a [let] can be
-    calculated by calculating the type of the [let]-bound term,
-    extending the context with a binding with this type, and in this
-    enriched context calculating the type of the body (which is then
-    the type of the whole [let] expression).
-
-    At this point in the book, it's probably easier simply to look at
-    the rules defining this new feature than to wade through a lot of
-    English text conveying the same information.  Here they are: *)
-
-(** Syntax:
-
-       t ::=                Terms
-           | ...               (other terms same as before)
-           | let x=t in t      let-binding
-*)
-
-(**
-    Reduction:
-
-                                 t1 --> t1'
-                     ----------------------------------               (ST_Let1)
-                     let x=t1 in t2 --> let x=t1' in t2
-
-                        ----------------------------              (ST_LetValue)
-                        let x=v1 in t2 --> [x:=v1]t2
-
-    Typing:
-
-             Gamma |-- t1 \in T1      x|->T1; Gamma |-- t2 \in T2
-             ----------------------------------------------------      (T_Let)
-                        Gamma |-- let x=t1 in t2 \in T2
-*)
-
 (* ================================================================= *)
 (** ** Pairs *)
-
-(** Our functional programming examples in Coq have made
-    frequent use of _pairs_ of values.  The type of such a pair is
-    called a _product type_.
-
-    The formalization of pairs is almost too simple to be worth
-    discussing.  However, let's look briefly at the various parts of
-    the definition to emphasize the common pattern. *)
-
-(** In Coq, the primitive way of extracting the components of a pair
-    is _pattern matching_.  An alternative is to take [fst] and
-    [snd] -- the first- and second-projection operators -- as
-    primitives.  Just for fun, let's do our pairs this way.  For
-    example, here's how we'd write a function that takes a pair of
-    numbers and returns the pair of their sum and difference:
-
-       \x : Nat*Nat,
-          let sum = x.fst + x.snd in
-          let diff = x.fst - x.snd in
-          (sum,diff)
-*)
-
-(** Adding pairs to the simply typed lambda-calculus, then, involves
-    adding two new forms of term -- pairing, written [(t1,t2)], and
-    projection, written [t.fst] for the first projection from [t] and
-    [t.snd] for the second projection -- plus one new type constructor,
-    [T1*T2], called the _product_ of [T1] and [T2].  *)
-
-(** Syntax:
-
-       t ::=                Terms
-           | ...
-           | (t,t)             pair
-           | t.fst             first projection
-           | t.snd             second projection
-
-       v ::=                Values
-           | ...
-           | (v,v)             pair value
-
-       T ::=                Types
-           | ...
-           | T * T             product type
-*)
-
-(** For reduction, we need several new rules specifying how pairs and
-    projection behave.
-
-                              t1 --> t1'
-                         --------------------                        (ST_Pair1)
-                         (t1,t2) --> (t1',t2)
-
-                              t2 --> t2'
-                         --------------------                        (ST_Pair2)
-                         (v1,t2) --> (v1,t2')
-
-                               t1 --> t1'
-                           ------------------                        (ST_Fst1)
-                           t1.fst --> t1'.fst
-
-                          ------------------                       (ST_FstPair)
-                          (v1,v2).fst --> v1
-
-                               t1 --> t1'
-                           ------------------                        (ST_Snd1)
-                           t1.snd --> t1'.snd
-
-                          ------------------                       (ST_SndPair)
-                          (v1,v2).snd --> v2
-*)
-
-(** Rules [ST_FstPair] and [ST_SndPair] say that, when a fully
-    reduced pair meets a first or second projection, the result is
-    the appropriate component.  The congruence rules [ST_Fst1] and
-    [ST_Snd1] allow reduction to proceed under projections, when the
-    term being projected from has not yet been fully reduced.
-    [ST_Pair1] and [ST_Pair2] reduce the parts of pairs: first the
-    left part, and then -- when a value appears on the left -- the right
-    part.  The ordering arising from the use of the metavariables [v]
-    and [t] in these rules enforces a left-to-right evaluation
-    strategy for pairs.  (Note the implicit convention that
-    metavariables like [v] and [v1] can only denote values.)  We've
-    also added a clause to the definition of values, above, specifying
-    that [(v1,v2)] is a value.  The fact that the components of a pair
-    value must themselves be values ensures that a pair passed as an
-    argument to a function will be fully reduced before the function
-    body starts executing. *)
-
-(** The typing rules for pairs and projections are straightforward.
-
-              Gamma |-- t1 \in T1     Gamma |-- t2 \in T2
-              -------------------------------------------              (T_Pair)
-                      Gamma |-- (t1,t2) \in T1*T2
-
-                        Gamma |-- t0 \in T1*T2
-                        -----------------------                        (T_Fst)
-                        Gamma |-- t0.fst \in T1
-
-                        Gamma |-- t0 \in T1*T2
-                        -----------------------                        (T_Snd)
-                        Gamma |-- t0.snd \in T2
-*)
-
-(** [T_Pair] says that [(t1,t2)] has type [T1*T2] if [t1] has
-    type [T1] and [t2] has type [T2].  Conversely, [T_Fst] and [T_Snd]
-    tell us that, if [t0] has a product type [T1*T2] (i.e., if it
-    will reduce to a pair), then the types of the projections from
-    this pair are [T1] and [T2]. *)
 
 (* ================================================================= *)
 (** ** Unit *)
 
-(** Another handy base type, found especially in functional languages,
-    is the singleton type [Unit].
-
-    It has a single element -- the term constant [unit] (with a small
-    [u]) -- and a typing rule making [unit] an element of [Unit].  We
-    also add [unit] to the set of possible values -- indeed, [unit] is
-    the _only_ possible result of reducing an expression of type
-    [Unit]. *)
-
-(** Syntax:
-
-       t ::=                Terms
-           | ...               (other terms same as before)
-           | unit              unit
-
-       v ::=                Values
-           | ...
-           | unit              unit value
-
-       T ::=                Types
-           | ...
-           | Unit              unit type
-
-    Typing:
-
-                         -----------------------                       (T_Unit)
-                         Gamma |-- unit \in Unit
-*)
-
-(** It may seem a little strange to bother defining a type that
-    has just one element -- after all, wouldn't every computation
-    living in such a type be trivial?
-
-    This is a fair question, and indeed in the STLC the [Unit] type is
-    not especially critical (though we'll see two uses for it below).
-    Where [Unit] really comes in handy is in richer languages with
-    _side effects_ -- e.g., assignment statements that mutate
-    variables or pointers, exceptions and other sorts of nonlocal
-    control structures, etc.  In such languages, it is convenient to
-    have a type for the (trivial) result of an expression that is
-    evaluated only for its effect. *)
-
 (* ================================================================= *)
 (** ** Sums *)
-
-(** Many programs need to deal with values that can take two distinct
-   forms.  For example, we might identify students in a university
-   database using _either_ their name _or_ their id number. A search
-   function might return _either_ a matching value _or_ an error code.
-
-   These are specific examples of a binary _sum type_ (sometimes called
-   a _disjoint union_), which describes a set of values drawn from
-   one of two given types, e.g.:
-
-       Nat + Bool
-*)
-(** We create elements of these types by _tagging_ elements of
-    the component types.  For example, if [n] is a [Nat] then [inl n]
-    is an element of [Nat+Bool]; similarly, if [b] is a [Bool] then
-    [inr b] is a [Nat+Bool].  The names of the tags [inl] and [inr]
-    arise from thinking of them as functions
-
-       inl \in Nat  -> Nat + Bool
-       inr \in Bool -> Nat + Bool
-
-    that "inject" elements of [Nat] or [Bool] into the left and right
-    components of the sum type [Nat+Bool].  (But note that we don't
-    actually treat them as functions in the way we formalize them:
-    [inl] and [inr] are keywords, and [inl t] and [inr t] are primitive
-    syntactic forms, not function applications.) *)
-
-(** In general, the elements of a type [T1 + T2] consist of the
-    elements of [T1] tagged with the token [inl], plus the elements of
-    [T2] tagged with [inr]. *)
-
-(** As we've seen in Coq programming, one important use of sums is
-    signaling errors:
-
-      div \in Nat -> Nat -> (Nat + Unit)
-      div =
-        \x:Nat, \y:Nat,
-          if iszero y then
-            inr unit
-          else
-            inl ...
-*)
-(** The type [Nat + Unit] above is in fact isomorphic to [option
-    nat] in Coq -- i.e., it's easy to write functions that translate
-    back and forth. *)
-
-(** To _use_ elements of sum types, we introduce a [case]
-    construct (a very simplified form of Coq's [match]) to destruct
-    them. For example, the following procedure converts a [Nat+Bool]
-    into a [Nat]:
-
-    getNat \in Nat+Bool -> Nat
-    getNat =
-      \x:Nat+Bool,
-        case x of
-          inl n => n
-        | inr b => if b then 1 else 0
-*)
-
-(** More formally... *)
-
-(** Syntax:
-
-       t ::=                Terms
-           | ...               (other terms same as before)
-           | inl T t           tagging (left)
-           | inr T t           tagging (right)
-           | case t of         case
-               inl x => t
-             | inr x => t
-
-       v ::=                Values
-           | ...
-           | inl T v           tagged value (left)
-           | inr T v           tagged value (right)
-
-       T ::=                Types
-           | ...
-           | T + T             sum type
-*)
-
-(** Reduction:
-
-                               t1 --> t1'
-                        ------------------------                       (ST_Inl)
-                        inl T2 t1 --> inl T2 t1'
-
-                               t2 --> t2'
-                        ------------------------                       (ST_Inr)
-                        inr T1 t2 --> inr T1 t2'
-
-                               t0 --> t0'
-               -------------------------------------------            (ST_Case)
-                case t0 of inl x1 => t1 | inr x2 => t2 -->
-               case t0' of inl x1 => t1 | inr x2 => t2
-
-            -----------------------------------------------        (ST_CaseInl)
-            case (inl T2 v1) of inl x1 => t1 | inr x2 => t2
-                           -->  [x1:=v1]t1
-
-            -----------------------------------------------        (ST_CaseInr)
-            case (inr T1 v2) of inl x1 => t1 | inr x2 => t2
-                           -->  [x2:=v2]t2
-*)
-
-(** Typing:
-
-                          Gamma |-- t1 \in T1
-                   -------------------------------                      (T_Inl)
-                   Gamma |-- inl T2 t1 \in T1 + T2
-
-                          Gamma |-- t2 \in T2
-                   --------------------------------                     (T_Inr)
-                    Gamma |-- inr T1 t2 \in T1 + T2
-
-                        Gamma |-- t0 \in T1+T2
-                     x1|->T1; Gamma |-- t1 \in T3
-                     x2|->T2; Gamma |-- t2 \in T3
-         -------------------------------------------------------        (T_Case)
-         Gamma |-- case t0 of inl x1 => t1 | inr x2 => t2 \in T3
-
-    We use the type annotations on [inl] and [inr] to make the typing
-    relation deterministic (each term has at most one type), as we
-    did for functions. *)
-
-(** Without this extra information, the typing rule [T_Inl], for
-    example, would have to say that, once we have shown that [t1] is
-    an element of type [T1], we can derive that [inl t1] is an element
-    of [T1 + T2] for _any_ type [T2].  For example, we could derive both
-    [inl 5 : Nat + Nat] and [inl 5 : Nat + Bool] (and infinitely many
-    other types).  This peculiarity (technically, a failure of
-    uniqueness of types) would mean that we cannot build a
-    typechecking algorithm simply by "reading the rules from bottom to
-    top" as we could for all the other features seen so far.
-
-    There are various ways to deal with this difficulty.  One simple
-    one -- which we've adopted here -- forces the programmer to
-    explicitly annotate the "other side" of a sum type when performing
-    an injection.  This is a bit heavy for programmers (so real
-    languages adopt other solutions), but it is easy to understand and
-    formalize. *)
 
 (* ================================================================= *)
 (** ** Lists *)
 
-(** The typing features we have seen can be classified into
-    _base types_ like [Bool], and _type constructors_ like [->] and
-    [*] that build new types from old ones.  Another useful type
-    constructor is [List].  For every type [T], the type [List T]
-    describes finite-length lists whose elements are drawn from [T].
-
-    In principle, we could encode lists using pairs, sums and
-    _recursive_ types. But giving semantics to recursive types is
-    non-trivial. Instead, we'll just discuss the special case of lists
-    directly.
-
-    Below we give the syntax, semantics, and typing rules for lists.
-    Except for the fact that explicit type annotations are mandatory
-    on [nil] and cannot appear on [cons], these lists are essentially
-    identical to those we built in Coq.  We use [case], rather than
-    [head] and [tail] operators, to destruct lists, to avoid dealing
-    with questions like "what is the [head] of the empty list?" *)
-
-(** For example, here is a function that calculates the sum of
-    the first two elements of a list of numbers:
-
-      \x:List Nat,
-      case x of
-        nil   => 0
-        | a::x' => case x' of
-                     nil    => a
-                     | b::x'' => a+b
-*)
-
-(**
-    Syntax:
-
-       t ::=                Terms
-           | ...
-           | nil T
-           | cons t t
-           | case t of
-               nil     => t
-               | x::x' => t
-
-       v ::=                Values
-           | ...
-           | nil T             nil value
-           | cons v v          cons value
-
-       T ::=                Types
-           | ...
-           | List T            list of Ts
-*)
-
-(** Reduction:
-
-                                t1 --> t1'
-                       --------------------------                    (ST_Cons1)
-                       cons t1 t2 --> cons t1' t2
-
-                                t2 --> t2'
-                       --------------------------                    (ST_Cons2)
-                       cons v1 t2 --> cons v1 t2'
-
-                              t1 --> t1'
-                -------------------------------------------         (ST_Lcase1)
-                 (case t1 of nil => t2 | xh::xt => t3) -->
-                (case t1' of nil => t2 | xh::xt => t3)
-
-               ------------------------------------------          (ST_LcaseNil)
-               (case nil T1 of nil => t2 | xh::xt => t3)
-                                --> t2
-
-            ------------------------------------------------     (ST_LcaseCons)
-            (case (cons vh vt) of nil => t2 | xh::xt => t3)
-                          --> [xh:=vh,xt:=vt]t3
-*)
-
-(** Typing:
-
-                        ----------------------------                    (T_Nil)
-                        Gamma |-- nil T1 \in List T1
-
-            Gamma |-- t1 \in T1      Gamma |-- t2 \in List T1
-            -------------------------------------------------           (T_Cons)
-                    Gamma |-- cons t1 t2 \in List T1
-
-                        Gamma |-- t1 \in List T1
-                        Gamma |-- t2 \in T2
-                (h|->T1; t|->List T1; Gamma) |-- t3 \in T2
-          ----------------------------------------------------         (T_Lcase)
-          Gamma |-- (case t1 of nil => t2 | h::t => t3) \in T2
-*)
-
 (* ================================================================= *)
 (** ** General Recursion *)
 
-(** Another facility found in most programming languages (including
-    Coq) is the ability to define recursive functions.  For example,
-    we would like to be able to define the factorial function like
-    this:
-
-      let fact = \x:Nat,
-             if x=0 then 1 else x * (fact (pred x))) in
-      fact 3.
-
-   Note that the right-hand side of this binder mentions [fact], the
-   variable being bound -- something that is not allowed according
-   to the way we defined [let] above.  (The body of a [let] is
-   typechecked in the same context as the [let] itself, which means
-   that the recursive occurrence of [fact] in the body will not have
-   a type in the context when it is looked up by the [T_Var] rule.) *)
-
-(* Changing the [let] rule to handle "recursive definitions"
-   like this is possible, but it requires some extra effort -- e.g.,
-   passing around an extra "environment" of recursive function
-   definitions in the definition of the [step] relation.  We're going
-   to take a simpler path here. *)
-
-(** Here is another way of presenting recursive functions that is
-    a bit more verbose but equally powerful and much more straightforward
-    to formalize: instead of writing recursive definitions, we will define
-    a _fixed-point operator_ called [fix] that performs the "unfolding"
-    of the recursive definition in the right-hand side as needed, during
-    reduction.
-
-    For example, instead of
-
-      fact = \x:Nat,
-                if x=0 then 1 else x * (fact (pred x)))
-
-    we will write:
-
-      fact =
-          fix
-            (\f:Nat->Nat,
-               \x:Nat,
-                  if x=0 then 1 else x * (f (pred x)))
-*)
-
-(** We can derive the latter from the former as follows:
-
-      - In the right-hand side of the definition of [fact], replace
-        recursive references to [fact] by a fresh variable [f].
-
-      - Add an abstraction binding [f] at the front, with an
-        appropriate type annotation.  (Since we are using [f] in place
-        of [fact], which had type [Nat->Nat], we should require [f]
-        to have the same type.)  The new abstraction has type
-        [(Nat->Nat) -> (Nat->Nat)].
-
-      - Apply [fix] to this abstraction.  This application has
-        type [Nat->Nat].
-
-      - Use all of this as the right-hand side of an ordinary
-        [let]-binding for [fact].
-*)
-
-(** The intuition here is that the higher-order function [f]
-    passed to [fix] is a _generator_ for the [fact] function: if [f]
-    is applied to a function that "approximates" the desired behavior
-    of [fact] up to some number [n] (that is, a function that returns
-    correct results on inputs less than or equal to [n] but we don't
-    care what it does on inputs greater than [n]), then [f] returns a
-    slightly better approximation to [fact] -- a function that returns
-    correct results for inputs up to [n+1].  Applying [fix] to this
-    generator returns its _fixed point_, which is a function that
-    gives the desired behavior for all inputs [n].
-
-    (The term "fixed point" is used here in exactly the same sense as
-    in ordinary mathematics, where a fixed point of a function [f] is
-    an input [x] such that [f(x) = x].  Here, a fixed point of a
-    function [F] of type [(Nat->Nat)->(Nat->Nat)] is a function [f] of
-    type [Nat->Nat] such that [F f] behaves the same as [f].) *)
-
-(** Syntax:
-
-       t ::=                Terms
-           | ...
-           | fix t             fixed-point operator
-
-   Reduction:
-
-                                t1 --> t1'
-                            ------------------                     (ST_Fix1)
-                            fix t1 --> fix t1'
-
-               --------------------------------------------      (ST_FixAbs)
-               fix (\xf:T1.t1) --> [xf:=fix (\xf:T1.t1)] t1
-
-   Typing:
-
-                           Gamma |-- t1 \in T1->T1
-                           -----------------------                    (T_Fix)
-                           Gamma |-- fix t1 \in T1
-*)
-
-(** Let's see how [ST_FixAbs] works by reducing [fact 3 = fix F 3],
-    where
-
-    F = (\f. \x. if x=0 then 1 else x * (f (pred x)))
-
-    (type annotations are omitted for brevity).
-
-    fix F 3
-
-[-->] [ST_FixAbs] + [ST_App1]
-
-    (\x. if x=0 then 1 else x * (fix F (pred x))) 3
-
-[-->] [ST_AppAbs]
-
-    if 3=0 then 1 else 3 * (fix F (pred 3))
-
-[-->] [ST_If0_Nonzero]
-
-    3 * (fix F (pred 3))
-
-[-->] [ST_FixAbs + ST_Mult2]
-
-    3 * ((\x. if x=0 then 1 else x * (fix F (pred x))) (pred 3))
-
-[-->] [ST_PredNat + ST_Mult2 + ST_App2]
-
-    3 * ((\x. if x=0 then 1 else x * (fix F (pred x))) 2)
-
-[-->] [ST_AppAbs + ST_Mult2]
-
-    3 * (if 2=0 then 1 else 2 * (fix F (pred 2)))
-
-[-->] [ST_If0_Nonzero + ST_Mult2]
-
-    3 * (2 * (fix F (pred 2)))
-
-[-->] [ST_FixAbs + 2 x ST_Mult2]
-
-    3 * (2 * ((\x. if x=0 then 1 else x * (fix F (pred x))) (pred 2)))
-
-[-->] [ST_PredNat + 2 x ST_Mult2 + ST_App2]
-
-    3 * (2 * ((\x. if x=0 then 1 else x * (fix F (pred x))) 1))
-
-[-->] [ST_AppAbs + 2 x ST_Mult2]
-
-    3 * (2 * (if 1=0 then 1 else 1 * (fix F (pred 1))))
-
-[-->] [ST_If0_Nonzero + 2 x ST_Mult2]
-
-    3 * (2 * (1 * (fix F (pred 1))))
-
-[-->] [ST_FixAbs + 3 x ST_Mult2]
-
-    3 * (2 * (1 * ((\x. if x=0 then 1 else x * (fix F (pred x))) (pred 1))))
-
-[-->] [ST_PredNat + 3 x ST_Mult2 + ST_App2]
-
-    3 * (2 * (1 * ((\x. if x=0 then 1 else x * (fix F (pred x))) 0)))
-
-[-->] [ST_AppAbs + 3 x ST_Mult2]
-
-    3 * (2 * (1 * (if 0=0 then 1 else 0 * (fix F (pred 0)))))
-
-[-->] [ST_If0Zero + 3 x ST_Mult2]
-
-    3 * (2 * (1 * 1))
-
-[-->] [ST_MultNats + 2 x ST_Mult2]
-
-    3 * (2 * 1)
-
-[-->] [ST_MultNats + ST_Mult2]
-
-    3 * 2
-
-[-->] [ST_MultNats]
-
-    6
-*)
-
-(** **** Exercise: 1 star, standard, optional (halve_fix)
-
-    Translate this informal recursive definition into one using [fix]:
-
-      halve =
-        \x:Nat,
-           if x=0 then 0
-           else if (pred x)=0 then 0
-           else 1 + (halve (pred (pred x)))
-
-    (* FILL IN HERE *)
-*)
-(** [] *)
-
-(** **** Exercise: 1 star, standard, optional (fact_steps)
-
-    Write down the sequence of steps that the term [fact 1] goes
-    through to reduce to a normal form (assuming the usual reduction
-    rules for arithmetic operations).
-
-    (* FILL IN HERE *)
-*)
-(** [] *)
-
-(** The ability to form the fixed point of a function of type [T->T]
-    for any [T] has some surprising consequences.  In particular, it
-    implies that _every_ type is inhabited by some term.  To see this,
-    observe that, for every type [T], we can define the term
-
-    fix (\x:T,x)
-
-    By [T_Fix]  and [T_Abs], this term has type [T].  By [ST_FixAbs]
-    it reduces to itself, over and over again.  Thus it is a
-    _diverging element_ of [T].
-
-    More usefully, here's an example using [fix] to define a
-    two-argument recursive function:
-
-    equal =
-      fix
-        (\eq:Nat->Nat->Bool,
-           \m:Nat, \n:Nat,
-             if m=0 then iszero n
-             else if n=0 then fls
-             else eq (pred m) (pred n))
-*)
-(** And finally, here is an example where [fix] is used to define a
-    _pair_ of recursive functions (illustrating the fact that the type
-    [T1] in the rule [T_Fix] need not be a function type):
-
-      evenodd =
-        fix
-          (\eo: (Nat->Bool * Nat->Bool),
-             let e = \n:Nat, if n=0 then tru else eo.snd (pred n) in
-             let o = \n:Nat, if n=0 then fls else eo.fst (pred n) in
-             (e,o))
-
-      even = evenodd.fst
-      odd  = evenodd.snd
-*)
-
 (* ================================================================= *)
 (** ** Records *)
-
-(** As a final example of a basic extension of the STLC, let's look
-    briefly at how to define _records_ and their types.  Intuitively,
-    records can be obtained from pairs by two straightforward
-    generalizations: they are n-ary (rather than just binary) and
-    their fields are accessed by _label_ (rather than position). *)
-
-(** Syntax:
-
-       t ::=                          Terms
-           | ...
-           | {i1=t1, ..., in=tn}         record
-           | t.i                         projection
-
-       v ::=                          Values
-           | ...
-           | {i1=v1, ..., in=vn}         record value
-
-       T ::=                          Types
-           | ...
-           | {i1:T1, ..., in:Tn}         record type
-*)
-
-(** The generalization from products should be pretty obvious.  But
-   it's worth noticing the ways in which what we've actually written is
-   even _more_ informal than the informal syntax we've used in previous
-   sections and chapters: we've used "[...]" in several places to mean "any
-   number of these," and we've omitted explicit mention of the usual
-   side condition that the labels of a record should not contain any
-   repetitions. *)
-
-(**
-   Reduction:
-
-                              ti --> ti'
-                 ------------------------------------                  (ST_Rcd)
-                     {i1=v1, ..., im=vm, in=ti , ...}
-                 --> {i1=v1, ..., im=vm, in=ti', ...}
-
-                              t0 --> t0'
-                            --------------                           (ST_Proj1)
-                            t0.i --> t0'.i
-
-                      -------------------------                    (ST_ProjRcd)
-                      {..., i=vi, ...}.i --> vi
-*)
-
-(** Again, these rules are a bit informal.  For example, the first rule
-    is intended to be read "if [ti] is the leftmost field that is not a
-    value and if [ti] steps to [ti'], then the whole record steps..."
-    In the last rule, the intention is that there should be only one
-    field called [i], and that all the other fields must contain values. *)
-
-(** The typing rules are also simple:
-
-            Gamma |-- t1 \in T1     ...     Gamma |-- tn \in Tn
-          -----------------------------------------------------        (T_Rcd)
-          Gamma |-- {i1=t1, ..., in=tn} \in {i1:T1, ..., in:Tn}
-
-                    Gamma |-- t0 \in {..., i:Ti, ...}
-                    ---------------------------------                  (T_Proj)
-                          Gamma |-- t0.i \in Ti
-*)
-
-(** There are several ways to approach formalizing the above
-    definitions.
-
-      - We can directly formalize the syntactic forms and inference
-        rules, staying as close as possible to the form we've given
-        them above.  This is conceptually straightforward, and it's
-        probably what we'd want to do if we were building a real
-        compiler (in particular, it will allow us to print error
-        messages in the form that programmers will find easy to
-        understand).  But the formal versions of the rules will not be
-        very pretty or easy to work with, because all the [...]s above
-        will have to be replaced with explicit quantifications or
-        comprehensions.  For this reason, records are not included in
-        the extended exercise at the end of this chapter.  (It is
-        still useful to discuss them informally here because they will
-        help motivate the addition of subtyping to the type system
-        when we get to the [Sub] chapter.)
-
-      - Alternatively, we could look for a smoother way of presenting
-        records -- for example, a binary presentation with one
-        constructor for the empty record and another constructor for
-        adding a single field to an existing record, instead of a
-        single monolithic constructor that builds a whole record at
-        once.  This is the right way to go if we are primarily
-        interested in studying the metatheory of the calculi with
-        records, since it leads to clean and elegant definitions and
-        proofs.  Chapter [Records] shows how this can be done.
-
-      - Finally, if we like, we can avoid formalizing records
-        altogether, by stipulating that record notations are just
-        informal shorthands for more complex expressions involving
-        pairs and product types.  We sketch this approach in the next
-        section. *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Encoding Records (Optional) *)
@@ -1799,7 +1018,7 @@ Proof with eauto.
            [t1 = \x0 : T0, t11], since abstractions are the
            only values that can have an arrow type.  But
            [(\x0 : T0, t11) t2 --> [x:=t2]t11] by [ST_AppAbs]. *)
-        destruct H; try solve_by_invert.
+        destruct H; try sinv.
         exists <{ [x0 := t2]t1 }>...
       * (* t2 steps *)
         (* If [t1] is a value and [t2 --> t2'],
@@ -1815,7 +1034,7 @@ Proof with eauto.
     right.
     destruct IHHt...
     + (* t1 is a value *)
-      destruct H; try solve_by_invert.
+      destruct H; try sinv.
       exists <{ {S n} }>...
     + (* t1 steps *)
       destruct H as [t' Hstp].
@@ -1824,7 +1043,7 @@ Proof with eauto.
     right.
     destruct IHHt...
     + (* t1 is a value *)
-      destruct H; try solve_by_invert.
+      destruct H; try sinv.
       exists <{ {n - 1} }>...
     + (* t1 steps *)
       destruct H as [t' Hstp].
@@ -1835,8 +1054,8 @@ Proof with eauto.
     + (* t1 is a value *)
       destruct IHHt2...
       * (* t2 is a value *)
-        destruct H; try solve_by_invert.
-        destruct H0; try solve_by_invert.
+        destruct H; try sinv.
+        destruct H0; try sinv.
         exists <{ {n * n0} }>...
       * (* t2 steps *)
         destruct H0 as [t2' Hstp].
@@ -1848,7 +1067,7 @@ Proof with eauto.
     right.
     destruct IHHt1...
     + (* t1 is a value *)
-      destruct H; try solve_by_invert.
+      destruct H; try sinv.
       destruct n as [|n'].
       * (* n1=0 *)
         exists t2...
@@ -1871,7 +1090,7 @@ Proof with eauto.
     right.
     destruct IHHt1...
     + (* t0 is a value *)
-      destruct H; try solve_by_invert.
+      destruct H; try sinv.
       * (* t0 is inl *)
         exists <{ [x1:=v]t1 }>...
       * (* t0 is inr *)
@@ -1895,7 +1114,7 @@ Proof with eauto.
     right.
     destruct IHHt1...
     + (* t1 is a value *)
-      destruct H; try solve_by_invert.
+      destruct H; try sinv.
       * (* t1=tm_nil *)
         exists t2...
       * (* t1=tm_cons v1 v2 *)
@@ -2082,5 +1301,3 @@ Proof with eauto.
 (** [] *)
 
 End STLCExtended.
-
-(* 2023-03-25 11:16 *)

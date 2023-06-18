@@ -1,5 +1,3 @@
-(** * Smallstep: Small-step Operational Semantics *)
-
 Set Warnings "-notation-overridden,-parsing,-deprecated-hint-without-locality".
 From Coq Require Import Arith.Arith.
 From Coq Require Import Arith.EqNat.
@@ -12,103 +10,20 @@ Set Default Goal Selector "!".
 
 Definition FILL_IN_HERE := <{True}>.
 
-(** The evaluators we have seen so far (for [aexp]s, [bexp]s,
-    commands, ...) have been formulated in a "big-step" style: they
-    specify how a given expression can be evaluated to its final
-    value (or a command plus a store to a final store) "all in one big
-    step."
+Ltac inv H := inversion H; subst; clear H.
 
-    This style is simple and natural for many purposes -- indeed,
-    Gilles Kahn, who popularized it, called it _natural semantics_.
-    But there are some things it does not do well.  In particular, it
-    does not give us a natural way of talking about _concurrent_
-    programming languages, where the semantics of a program -- i.e.,
-    the essence of how it behaves -- is not just which input states
-    get mapped to which output states, but also includes the
-    intermediate states that it passes through along the way, since
-    these states can also be observed by concurrently executing code.
+Ltac sinvs n :=
+  match goal with | H : ?T |- _ =>
+  match type of T with Prop =>
+    solve [ inv H; match n with S (S (?n')) => sinvs (S n') end ]
+  end end.
 
-    Another shortcoming of the big-step style is more technical, but
-    critical in many situations.  Suppose we want to define a variant
-    of Imp where variables could hold _either_ numbers _or_ lists of
-    numbers.  In the syntax of this extended language, it will be
-    possible to write strange expressions like [2 + nil], and our
-    semantics for arithmetic expressions will then need to say
-    something about how such expressions behave.  One possibility is
-    to maintain the convention that every arithmetic expression
-    evaluates to some number by choosing some way of viewing a list as
-    a number -- e.g., by specifying that a list should be interpreted
-    as [0] when it occurs in a context expecting a number.  But this
-    is really a bit of a hack.
-
-    A much more natural approach is simply to say that the behavior of
-    an expression like [2+nil] is _undefined_ -- i.e., it doesn't
-    evaluate to any result at all.  And we can easily do this: we just
-    have to formulate [aeval] and [beval] as [Inductive] propositions
-    rather than [Fixpoint]s, so that we can make them partial functions
-    instead of total ones.
-
-    Now, however, we encounter a serious deficiency.  In this
-    language, a command might fail to map a given starting state to
-    any ending state for _two quite different reasons_: either because
-    the execution gets into an infinite loop or because, at some
-    point, the program tries to do an operation that makes no sense,
-    such as adding a number to a list, so that none of the evaluation
-    rules can be applied.
-
-    These two outcomes -- nontermination vs. getting stuck in an
-    erroneous configuration -- should not be confused.  In particular, we
-    want to _allow_ the first (permitting the possibility of infinite
-    loops is the price we pay for the convenience of programming with
-    general looping constructs like [while]) but _prevent_ the
-    second (which is just wrong), for example by adding some form of
-    _typechecking_ to the language.  Indeed, this will be a major
-    topic for the rest of the course.  As a first step, we need a way
-    of presenting the semantics that allows us to distinguish
-    nontermination from erroneous "stuck states."
-
-    So, for lots of reasons, we'd often like to have a finer-grained
-    way of defining and reasoning about program behaviors.  This is
-    the topic of the present chapter.  Our goal is to replace the
-    "big-step" [eval] relation with a "small-step" relation that
-    specifies, for a given program, how the "atomic steps" of
-    computation are performed. *)
+Ltac sinv := sinvs 1.
 
 (* ################################################################# *)
 (** * A Toy Language *)
 
-(** To save space in the discussion, let's go back to an
-    incredibly simple language containing just constants and
-    addition.  (We use single letters -- [C] and [P] (for Constant and
-    Plus) -- as constructor names, for brevity.)  At the end of the
-    chapter, we'll see how to apply the same techniques to the full
-    Imp language.  *)
-
-Inductive tm : Type :=
-  | C : nat -> tm         (* Constant *)
-  | P : tm -> tm -> tm.   (* Plus *)
-
-(** Here is a standard evaluator for this language, written in
-    the big-step style that we've been using up to this point. *)
-
-Fixpoint evalF (t : tm) : nat :=
-  match t with
-  | C n => n
-  | P t1 t2 => evalF t1 + evalF t2
-  end.
-
-(** Here is the same evaluator, written in exactly the same
-    style, but formulated as an inductively defined relation.
-    We use the notation [t ==> n] for "[t] evaluates to [n]."
-
-                               ---------                               (E_Const)
-                               C n ==> n
-
-                               t1 ==> v1
-                               t2 ==> v2
-                           -------------------                         (E_Plus)
-                           P t1 t2 ==> v1 + v2
-*)
+Inductive tm : Type := C (n : nat) | P (t1 t2 : tm).
 
 Reserved Notation " t '==>' n " (at level 50, left associativity).
 
@@ -124,21 +39,6 @@ where " t '==>' n " := (eval t n).
 
 Module SimpleArith1.
 
-(** Now, here is the corresponding _small-step_ evaluation relation.
-
-    
-                     -------------------------------        (ST_PlusConstConst)
-                     P (C v1) (C v2) --> C (v1 + v2)
-
-                              t1 --> t1'
-                         --------------------                        (ST_Plus1)
-                         P t1 t2 --> P t1' t2
-
-                              t2 --> t2'
-                      ----------------------------                   (ST_Plus2)
-                      P (C v1) t2 --> P (C v1) t2'
-*)
-
 Reserved Notation " t '-->' t' " (at level 40).
 
 Inductive step : tm -> tm -> Prop :=
@@ -153,55 +53,11 @@ Inductive step : tm -> tm -> Prop :=
 
   where " t '-->' t' " := (step t t').
 
-(** Things to notice:
-
-    - We are defining just a single reduction step, in which
-      one [P] node is replaced by its value.
-
-    - Each step finds the _leftmost_ [P] node that is ready to
-      go (both of its operands are constants) and rewrites it in
-      place.  The first rule tells how to rewrite this [P] node
-      itself; the other two rules tell how to find it.
-
-    - A term that is just a constant cannot take a step. *)
-
-(** Let's pause and check a couple of examples of reasoning with
-    the [step] relation... *)
-
-(** If [t1] can take a step to [t1'], then [P t1 t2] steps
-    to [P t1' t2]: *)
-
-Example test_step_1 :
-      P
-        (P (C 1) (C 3))
-        (P (C 2) (C 4))
-      -->
-      P
-        (C 4)
-        (P (C 2) (C 4)).
-Proof.
-  apply ST_Plus1. apply ST_PlusConstConst.  Qed.
-
-(** **** Exercise: 1 star, standard (test_step_2)
-
-    Right-hand sides of sums can take a step only when the
-    left-hand side is finished: if [t2] can take a step to [t2'],
-    then [P (C n) t2] steps to [P (C n) t2']: *)
+(** **** Exercise: 1 star, standard (test_step_2) *)
 
 Example test_step_2 :
-      P
-        (C 0)
-        (P
-          (C 2)
-          (P (C 1) (C 3)))
-      -->
-      P
-        (C 0)
-        (P
-          (C 2)
-          (C 4)).
-Proof.
-  (* FILL IN HERE *) Admitted.
+  P (C 0) (P (C 2) (P (C 1) (C 3))) --> P (C 0) (P (C 2) (C 4)).
+Proof. repeat econstructor. Qed.
 (** [] *)
 
 End SimpleArith1.
@@ -209,54 +65,7 @@ End SimpleArith1.
 (* ################################################################# *)
 (** * Relations *)
 
-(** We will be working with several different single-step relations,
-    so it is helpful to generalize a bit and state a few definitions
-    and theorems about relations in general.  (The optional chapter
-    [Rel.v] develops some of these ideas in a bit more detail; it may
-    be useful if the treatment here feels too terse.) *)
-
-(** A _binary relation_ on a set [X] is a family of propositions
-    parameterized by two elements of [X] -- i.e., a proposition about
-    pairs of elements of [X].  *)
-
 Definition relation (X : Type) := X -> X -> Prop.
-
-(** Our main examples of such relations in this chapter will be
-    the single-step reduction relation, [-->], and its multi-step
-    variant, [-->*] (defined below), but there are many other
-    examples -- e.g., the "equals," "less than," "less than or equal
-    to," and "is the square of" relations on numbers, and the "prefix
-    of" relation on lists and strings. *)
-
-(** One simple property of the [-->] relation is that, like the
-    big-step evaluation relation for Imp, it is _deterministic_.
-
-    _Theorem_: For each [t], there is at most one [t'] such that [t]
-    steps to [t'] ([t --> t'] is provable). *)
-
-(** _Proof sketch_: We show that if [x] steps to both [y1] and
-    [y2], then [y1] and [y2] are equal, by induction on a derivation
-    of [step x y1].  There are several cases to consider, depending on
-    the last rule used in this derivation and the last rule in the
-    given derivation of [step x y2].
-
-      - If both are [ST_PlusConstConst], the result is immediate.
-
-      - The cases when both derivations end with [ST_Plus1] or
-        [ST_Plus2] follow by the induction hypothesis.
-
-      - It cannot happen that one is [ST_PlusConstConst] and the other
-        is [ST_Plus1] or [ST_Plus2], since this would imply that [x]
-        has the form [P t1 t2] where both [t1] and [t2] are
-        constants (by [ST_PlusConstConst]) _and_ one of [t1] or [t2]
-        has the form [P _].
-
-      - Similarly, it cannot happen that one is [ST_Plus1] and the
-        other is [ST_Plus2], since this would imply that [x] has the
-        form [P t1 t2] where [t1] has both the form [P t11 t12] and the
-        form [C n]. [] *)
-
-(** Formally: *)
 
 Definition deterministic {X : Type} (R : relation X) :=
   forall x y1 y2 : X, R x y1 -> R x y2 -> y1 = y2.
@@ -264,338 +73,78 @@ Definition deterministic {X : Type} (R : relation X) :=
 Module SimpleArith2.
 Import SimpleArith1.
 
-Theorem step_deterministic:
-  deterministic step.
+Theorem step_deterministic: deterministic step.
 Proof.
-  unfold deterministic. intros x y1 y2 Hy1 Hy2.
-  generalize dependent y2.
-  induction Hy1; intros y2 Hy2.
-  - (* ST_PlusConstConst *) inversion Hy2; subst.
-    + (* ST_PlusConstConst *) reflexivity.
-    + (* ST_Plus1 *) inversion H2.
-    + (* ST_Plus2 *) inversion H2.
-  - (* ST_Plus1 *) inversion Hy2; subst.
-    + (* ST_PlusConstConst *)
-      inversion Hy1.
-    + (* ST_Plus1 *)
-      apply IHHy1 in H2. rewrite H2. reflexivity.
-    + (* ST_Plus2 *)
-      inversion Hy1.
-  - (* ST_Plus2 *) inversion Hy2; subst.
-    + (* ST_PlusConstConst *)
-      inversion Hy1.
-    + (* ST_Plus1 *) inversion H2.
-    + (* ST_Plus2 *)
-      apply IHHy1 in H2. rewrite H2. reflexivity.
+  intros ? ? ? s1; revert y2.
+  induction s1 as [|t1 t1' t2 s IH|v1 t2 t2' s IH]; intros ? s2; inv s2;
+  try (apply IH in H2; subst); try inv s; try inv H2; eauto.
 Qed.
 
 End SimpleArith2.
 
-(** There is some annoying repetition in this proof.  Each use of
-    [inversion Hy2] results in three subcases, only one of which is
-    relevant (the one that matches the current case in the induction
-    on [Hy1]).  The other two subcases need to be dismissed by finding
-    the contradiction among the hypotheses and doing inversion on it.
-
-    The following custom tactic, called [solve_by_inverts], can be
-    helpful in such cases.  It will solve the goal if it can be solved
-    by inverting some hypothesis; otherwise, it fails. *)
-
-Ltac solve_by_inverts n :=
-  match goal with | H : ?T |- _ =>
-  match type of T with Prop =>
-    solve [
-      inversion H;
-      match n with S (S (?n')) => subst; solve_by_inverts (S n') end ]
-  end end.
-
-(** The details of how this works are not important for now, but it
-    illustrates the power of Coq's [Ltac] language for
-    programmatically defining special-purpose tactics.  It looks
-    through the current proof state for a hypothesis [H] (the first
-    [match]) of type [Prop] (the second [match]) such that performing
-    inversion on [H] (followed by a recursive invocation of the same
-    tactic, if its argument [n] is greater than one) completely solves
-    the current goal.  If no such hypothesis exists, it fails.
-
-    We will usually want to call [solve_by_inverts] with argument
-    [1] (especially as larger arguments can lead to very slow proof
-    checking), so we define [solve_by_invert] as a shorthand for this
-    case. *)
-
-Ltac solve_by_invert :=
-  solve_by_inverts 1.
-
-(** The proof of the previous theorem can now be simplified... *)
-
-Module SimpleArith3.
-Import SimpleArith1.
-
-Theorem step_deterministic_alt: deterministic step.
-Proof.
-  intros x y1 y2 Hy1 Hy2.
-  generalize dependent y2.
-  induction Hy1; intros y2 Hy2;
-    inversion Hy2; subst; try solve_by_invert.
-  - (* ST_PlusConstConst *) reflexivity.
-  - (* ST_Plus1 *)
-    apply IHHy1 in H2. rewrite H2. reflexivity.
-  - (* ST_Plus2 *)
-    apply IHHy1 in H2. rewrite H2. reflexivity.
-Qed.
-
-End SimpleArith3.
-
 (* ================================================================= *)
 (** ** Values *)
 
-(** Next, it will be useful to slightly reformulate the
-    definition of single-step reduction by stating it in terms of
-    "values." *)
-
-(** It can be useful to think of the [-->] relation as defining an
-    _abstract machine_:
-
-      - At any moment, the _state_ of the machine is a term.
-
-      - A _step_ of the machine is an atomic unit of computation --
-        here, a single "add" operation.
-
-      - The _halting states_ of the machine are ones where there is no
-        more computation to be done. *)
-
-(** We can then _execute_ a term [t] as follows:
-
-      - Take [t] as the starting state of the machine.
-
-      - Repeatedly use the [-->] relation to find a sequence of
-        machine states, starting with [t], where each state steps to
-        the next.
-
-      - When no more reduction is possible, "read out" the final state
-        of the machine as the result of execution. *)
-
-(** Intuitively, it is clear that the final states of the
-    machine are always terms of the form [C n] for some [n].
-    We call such terms _values_. *)
-
-Inductive value : tm -> Prop :=
-  | v_const : forall n, value (C n).
-
-(** Having introduced the idea of values, we can use it in the
-    definition of the [-->] relation to write [ST_Plus2] rule in a
-    slightly more elegant way: *)
-
-(** 
-                     -------------------------------        (ST_PlusConstConst)
-                     P (C v1) (C v2) --> C (v1 + v2)
-
-                              t1 --> t1'
-                         --------------------                        (ST_Plus1)
-                         P t1 t2 --> P t1' t2
-
-                               value v1
-                              t2 --> t2'
-                         --------------------                        (ST_Plus2)
-                         P v1 t2 --> P v1 t2'
-*)
-
-(** Again, the variable names in the informal presentation carry
-    important information: by convention, [v1] ranges only over
-    values, while [t1] and [t2] range over arbitrary terms.  (Given
-    this convention, the explicit [value] hypothesis is arguably
-    redundant, since the naming convention tells us where to add it
-    when translating the informal rule to Coq.  We'll keep it for now,
-    to maintain a close correspondence between the informal and Coq
-    versions of the rules, but later on we'll drop it in informal
-    rules for brevity.) *)
-
-(**  Here are the formal rules: *)
+Inductive value : tm -> Prop := v_const : forall n, value (C n).
 
 Reserved Notation " t '-->' t' " (at level 40).
 
 Inductive step : tm -> tm -> Prop :=
   | ST_PlusConstConst : forall v1 v2,
-          P (C v1) (C v2)
-      --> C (v1 + v2)
+      P (C v1) (C v2) --> C (v1 + v2)
   | ST_Plus1 : forall t1 t1' t2,
-        t1 --> t1' ->
-        P t1 t2 --> P t1' t2
+      t1 --> t1' ->
+      P t1 t2 --> P t1' t2
   | ST_Plus2 : forall v1 t2 t2',
-        value v1 ->                     (* <--- n.b. *)
-        t2 --> t2' ->
-        P v1 t2 --> P v1 t2'
+      value v1 ->                     (* <--- n.b. *)
+      t2 --> t2' ->
+      P v1 t2 --> P v1 t2'
 
   where " t '-->' t' " := (step t t').
 
-(** **** Exercise: 3 stars, standard, especially useful (redo_determinism)
+(** **** Exercise: 3 stars, standard, especially useful (redo_determinism) *)
 
-    As a sanity check on this change, let's re-verify determinism.
-    Here's an informal proof:
-
-    _Proof sketch_: We must show that if [x] steps to both [y1] and
-    [y2], then [y1] and [y2] are equal.  Consider the final rules used
-    in the derivations of [step x y1] and [step x y2].
-
-    - If both are [ST_PlusConstConst], the result is immediate.
-
-    - It cannot happen that one is [ST_PlusConstConst] and the other
-      is [ST_Plus1] or [ST_Plus2], since this would imply that [x] has
-      the form [P t1 t2] where both [t1] and [t2] are constants (by
-      [ST_PlusConstConst]) _and_ one of [t1] or [t2] has the form [P
-      _].
-
-    - Similarly, it cannot happen that one is [ST_Plus1] and the other
-      is [ST_Plus2], since this would imply that [x] has the form [P
-      t1 t2] where [t1] both has the form [P t11 t12] and is a
-      value (hence has the form [C n]).
-
-    - The cases when both derivations end with [ST_Plus1] or
-      [ST_Plus2] follow by the induction hypothesis. [] *)
-
-(** Most of this proof is the same as the one above.  But to get
-    maximum benefit from the exercise you should try to write your
-    formal version from scratch and just use the earlier one if you
-    get stuck. *)
-
-Theorem step_deterministic :
-  deterministic step.
+Theorem step_deterministic : deterministic step.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros ? ? ? s1 s2; revert y2 s2.
+  induction s1 as [|? ? ? s IH|? ? ? v s IH]; intros;
+  inv s2; try sinvs 2;
+  try apply IH in H2; try apply IH in H3; subst; reflexivity.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
 (** ** Strong Progress and Normal Forms *)
 
-(** The definition of single-step reduction for our toy language
-    is fairly simple, but for a larger language it would be easy to
-    forget one of the rules and accidentally create a situation where
-    some term cannot take a step even though it has not been
-    completely reduced to a value.  The following theorem shows that
-    we did not, in fact, make such a mistake here. *)
-
-(** _Theorem_ (_Strong Progress_): If [t] is a term, then either [t]
-    is a value or else there exists a term [t'] such that [t --> t']. *)
-
-(** _Proof_: By induction on [t].
-
-    - Suppose [t = C n]. Then [t] is a value.
-
-    - Suppose [t = P t1 t2], where (by the IH) [t1] either is a value
-      or can step to some [t1'], and where [t2] is either a value or
-      can step to some [t2']. We must show [P t1 t2] is either a value
-      or steps to some [t'].
-
-      - If [t1] and [t2] are both values, then [t] can take a step, by
-        [ST_PlusConstConst].
-
-      - If [t1] is a value and [t2] can take a step, then so can [t],
-        by [ST_Plus2].
-
-      - If [t1] can take a step, then so can [t], by [ST_Plus1].  []
-
-   Or, formally: *)
-
-Theorem strong_progress : forall t,
-  value t \/ (exists t', t --> t').
+Theorem strong_progress : forall t, value t \/ (exists t', t --> t').
 Proof.
-  induction t.
-  - (* C *) left. apply v_const.
-  - (* P *) right. destruct IHt1 as [IHt1 | [t1' Ht1] ].
-    + (* l *) destruct IHt2 as [IHt2 | [t2' Ht2] ].
-      * (* l *) inversion IHt1. inversion IHt2.
-        exists (C (n + n0)).
-        apply ST_PlusConstConst.
-      * (* r *)
-        exists (P t1 t2').
-        apply ST_Plus2; auto.
-    + (* r *)
-      exists (P t1' t2).
-      apply ST_Plus1. apply Ht1.
+  induction t as [n|t1 [v1|[t1']] t2 [v2|[t2']]];
+  try inv v1; try inv v2; eauto using value, step.
 Qed.
 
-(** This important property is called _strong progress_, because
-    every term either is a value or can "make progress" by stepping to
-    some other term.  (The qualifier "strong" distinguishes it from a
-    more refined version that we'll see in later chapters, called
-    just _progress_.) *)
-
-(** The idea of "making progress" can be extended to tell us something
-    interesting about values: they are exactly the terms that _cannot_
-    make progress in this sense.
-
-    To state this observation formally, let's begin by giving a name
-    to "terms that cannot make progress."  We'll call them _normal
-    forms_.  *)
-
-Definition normal_form {X : Type}
-              (R : relation X) (t : X) : Prop :=
+Definition normal_form {X : Type} (R : relation X) (t : X) : Prop :=
   ~ exists t', R t t'.
 
-(** Note that this definition specifies what it is to be a normal form
-    for an _arbitrary_ relation [R] over an arbitrary set [X], not
-    just for the particular single-step reduction relation over terms
-    that we are interested in at the moment.  We'll re-use the same
-    terminology for talking about other relations later in the
-    course. *)
+Lemma value_is_nf : forall v, value v -> normal_form step v.
+Proof. intros v [n] [t']; inv H. Qed.
 
-(** We can use this terminology to generalize the observation we
-    made in the strong progress theorem: in this language (though not
-    necessarily, in general), normal forms and values are actually the
-    same thing. *)
-
-Lemma value_is_nf : forall v,
-  value v -> normal_form step v.
+Lemma nf_is_value : forall t, normal_form step t -> value t.
 Proof.
-  unfold normal_form. intros v H. destruct H.
-  intros contra. destruct contra. inversion H.
+  intros t Hnorm.
+  assert (G : value t \/ exists t', t --> t') by apply strong_progress.
+  destruct G as [G | G]; eauto; contradiction.
 Qed.
 
-Lemma nf_is_value : forall t,
-  normal_form step t -> value t.
-Proof. (* a corollary of [strong_progress]... *)
-  unfold normal_form. intros t H.
-  assert (G : value t \/ exists t', t --> t').
-  { apply strong_progress. }
-  destruct G as [G | G].
-  - (* l *) apply G.
-  - (* r *) contradiction.
-Qed.
+Corollary nf_same_as_value : forall t, normal_form step t <-> value t.
+Proof. split; [apply nf_is_value | apply value_is_nf]. Qed.
 
-Corollary nf_same_as_value : forall t,
-  normal_form step t <-> value t.
-Proof.
-  split.
-  - apply nf_is_value.
-  - apply value_is_nf.
-Qed.
-
-(** Why is this interesting?
-
-    Because [value] is a syntactic concept -- it is defined by looking
-    at the way a term is written -- while [normal_form] is a semantic
-    one -- it is defined by looking at how the term steps.
-
-    It is not obvious that these concepts should characterize the same
-    set of terms!  *)
-
-(** Indeed, we could easily have written the definitions (incorrectly)
-    so that they would _not_ coincide. *)
-
-(** **** Exercise: 3 stars, standard, optional (value_not_same_as_normal_form1)
-
-    We might, for example, define [value] so that it
-    includes some terms that are not finished reducing.
-
-    (Even if you don't work this exercise and the following ones
-    in Coq, make sure you can think of an example of such a term.) *)
+(** **** Exercise: 3 stars, standard, optional (value_not_same_as_normal_form1) *)
 
 Module Temp1.
 
 Inductive value : tm -> Prop :=
   | v_const : forall n, value (C n)
-  | v_funny : forall t1 v2,
-                value (P t1 (C v2)).              (* <--- *)
+  | v_funny : forall t1 v2, value (P t1 (C v2)).
 
 Reserved Notation " t '-->' t' " (at level 40).
 
@@ -615,20 +164,18 @@ Inductive step : tm -> tm -> Prop :=
 Lemma value_not_same_as_normal_form :
   exists v, value v /\ ~ normal_form step v.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists (P (P (C 1) (C 2)) (C 4)); split; eauto using value.
+  intros Hnorm; apply Hnorm; eauto using step.
+Qed.
 End Temp1.
 
 (** [] *)
 
-(** **** Exercise: 2 stars, standard, optional (value_not_same_as_normal_form2)
-
-    Or we might (again, wrongly) define [step] so that it permits
-    something designated as a value to reduce further. *)
+(** **** Exercise: 2 stars, standard, optional (value_not_same_as_normal_form2) *)
 
 Module Temp2.
 
-Inductive value : tm -> Prop :=
-  | v_const : forall n, value (C n).         (* Original definition *)
+Inductive value : tm -> Prop := v_const : forall n, value (C n).
 
 Reserved Notation " t '-->' t' " (at level 40).
 
@@ -650,24 +197,17 @@ Inductive step : tm -> tm -> Prop :=
 Lemma value_not_same_as_normal_form :
   exists v, value v /\ ~ normal_form step v.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+  exists (C 0); split; eauto using value.
+  intros H; apply H; eauto using step.
+Qed.
 End Temp2.
 (** [] *)
 
-(** **** Exercise: 3 stars, standard, optional (value_not_same_as_normal_form3)
-
-    Finally, we might define [value] and [step] so that there is some
-    term that is not a value but that cannot take a step in the [step]
-    relation.  Such terms are said to be _stuck_. In this case this is
-    caused by a mistake in the semantics, but we will also see
-    situations where, even in a correct language definition, it makes
-    sense to allow some terms to be stuck. *)
+(** **** Exercise: 3 stars, standard, optional (value_not_same_as_normal_form3) *)
 
 Module Temp3.
 
-Inductive value : tm -> Prop :=
-  | v_const : forall n, value (C n).
+Inductive value : tm -> Prop := v_const : forall n, value (C n).
 
 Reserved Notation " t '-->' t' " (at level 40).
 
@@ -680,12 +220,13 @@ Inductive step : tm -> tm -> Prop :=
 
   where " t '-->' t' " := (step t t').
 
-(** (Note that [ST_Plus2] is missing.) *)
-
 Lemma value_not_same_as_normal_form :
   exists t, ~ value t /\ normal_form step t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists (P (C 0) (P (C 0) (C 0))); split.
+  - intros H; inv H.
+  - intros [t]; sinvs 2.
+Qed.
 
 End Temp3.
 (** [] *)
@@ -694,10 +235,6 @@ End Temp3.
 (** *** Additional Exercises *)
 
 Module Temp4.
-
-(** Here is another very simple language whose terms, instead of being
-    just addition expressions and numbers, are just the booleans true
-    and false and a conditional expression... *)
 
 Inductive tm : Type :=
   | tru : tm
@@ -721,39 +258,7 @@ Inductive step : tm -> tm -> Prop :=
 
   where " t '-->' t' " := (step t t').
 
-(** **** Exercise: 1 star, standard, optional (smallstep_bools)
-
-    Which of the following propositions are provable?  (This is just a
-    thought exercise, but for an extra challenge feel free to prove
-    your answers in Coq.) *)
-
-Definition bool_step_prop1 :=
-  fls --> fls.
-
-(* FILL IN HERE *)
-
-Definition bool_step_prop2 :=
-     test
-       tru
-       (test tru tru tru)
-       (test fls fls fls)
-  -->
-     tru.
-
-(* FILL IN HERE *)
-
-Definition bool_step_prop3 :=
-     test
-       (test tru tru tru)
-       (test tru tru tru)
-       fls
-   -->
-     test
-       tru
-       (test tru tru tru)
-       fls.
-
-(* FILL IN HERE *)
+(** **** Exercise: 1 star, standard, optional (smallstep_bools) *)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_smallstep_bools : option (nat*string) := None.
@@ -764,40 +269,25 @@ Definition manual_grade_for_smallstep_bools : option (nat*string) := None.
     Just as we proved a progress theorem for plus expressions, we can
     do so for boolean expressions, as well. *)
 
-Theorem strong_progress_bool : forall t,
-  value t \/ (exists t', t --> t').
+Theorem strong_progress_bool : forall t, value t \/ (exists t', t --> t').
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction t as [| |b [vb|[b']] t1 [v1|[t1']] t2 [v2|[t2']]];
+  try inv vb; try inv v1; try inv v2; eauto using value, step.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (step_deterministic) *)
 Theorem step_deterministic : deterministic step.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t t1 t2 s1 s2; revert t2 s2.
+  induction s1; intros;
+  inv s2; try sinv; try apply IHs1 in H3; subst; eauto.
+Qed. 
 (** [] *)
 
 Module Temp5.
 
-(** **** Exercise: 2 stars, standard (smallstep_bool_shortcut)
-
-    Suppose we want to add a "short circuit" to the step relation for
-    boolean expressions, so that it can recognize when the [then] and
-    [else] branches of a conditional are the same value (either
-    [tru] or [fls]) and reduce the whole conditional to this
-    value in a single step, even if the guard has not yet been reduced
-    to a value. For example, we would like this proposition to be
-    provable:
-
-         test
-            (test tru tru tru)
-            fls
-            fls
-     -->
-         fls.
-*)
-
-(** Write an extra clause for the step relation that achieves this
-    effect and prove [bool_step_prop4]. *)
+(** **** Exercise: 2 stars, standard (smallstep_bool_shortcut) *)
 
 Reserved Notation " t '-->' t' " (at level 40).
 
@@ -809,51 +299,36 @@ Inductive step : tm -> tm -> Prop :=
   | ST_If : forall t1 t1' t2 t3,
       t1 --> t1' ->
       test t1 t2 t3 --> test t1' t2 t3
-  (* FILL IN HERE *)
+  | ST_IfDc : forall t1 t2,
+      test t1 t2 t2 --> t2
 
   where " t '-->' t' " := (step t t').
 
-Definition bool_step_prop4 :=
-         test
-            (test tru tru tru)
-            fls
-            fls
-     -->
-         fls.
+Definition bool_step_prop4 := test (test tru tru tru) fls fls --> fls.
 
-Example bool_step_prop4_holds :
-  bool_step_prop4.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Example bool_step_prop4_holds : bool_step_prop4.
+Proof. econstructor. Qed.
 (** [] *)
 
-(** **** Exercise: 3 stars, standard, optional (properties_of_altered_step)
+(** **** Exercise: 3 stars, standard, optional (properties_of_altered_step) *)
 
-    It can be shown that the determinism and strong progress theorems
-    for the step relation in the lecture notes also hold for the
-    definition of step given above.  After we add the clause
-    [ST_ShortCircuit]...
+Theorem strong_progress : forall t, value t \/ exists t', t --> t'.
+Proof.
+  induction t as [| |b [vb|IHb] t1 [v1|IH1] t2 [v2|IH2]]; eauto using value; right;
+  try inv vb; try destruct IHb as [b'];
+  try inv v1; try destruct IH1 as [t1'];
+  try inv v2; try destruct IH2 as [t2'];
+  eexists; econstructor; eauto.
+Qed.
 
-    - Is the [step] relation still deterministic?  Write yes or no and
-      briefly (1 sentence) explain your answer.
+Theorem step_nondeterministic : ~ (deterministic step).
+Proof.
+  unfold deterministic; intros H.
+  assert (G : (test tru fls fls) = fls).
+  { apply H with (test (test tru tru fls) fls fls); repeat econstructor. }
+  discriminate.
+Qed.
 
-      Optional: prove your answer correct in Coq. *)
-
-(* FILL IN HERE
-   - Does a strong progress theorem hold? Write yes or no and
-     briefly (1 sentence) explain your answer.
-
-     Optional: prove your answer correct in Coq.
-*)
-
-(* FILL IN HERE
-   - In general, is there any way we could cause strong progress to
-     fail if we took away one or more constructors from the original
-     step relation? Write yes or no and briefly (1 sentence) explain
-     your answer.
-
-(* FILL IN HERE *)
-*)
 (* Do not modify the following line: *)
 Definition manual_grade_for_properties_of_altered_step : option (nat*string) := None.
 (** [] *)
@@ -864,403 +339,144 @@ End Temp4.
 (* ################################################################# *)
 (** * Multi-Step Reduction *)
 
-(** We've been working so far with the _single-step reduction_
-    relation [-->], which formalizes the individual steps of an
-    abstract machine for executing programs.
-
-    We can use the same machine to reduce programs to completion -- to
-    find out what final result they yield.  This can be formalized as
-    follows:
-
-    - First, we define a _multi-step reduction relation_ [-->*], which
-      relates terms [t] and [t'] if [t] can reach [t'] by any number
-      (including zero) of single reduction steps.
-
-    - Then we define a "result" of a term [t] as a normal form that
-      [t] can reach by multi-step reduction. *)
-
-(** Since we'll want to reuse the idea of multi-step reduction many
-    times, let's pause and define it generically.
-
-    Given a relation [R] (e.g., the step relation [-->]), we define a
-    relation [multi R], called the _multi-step closure of [R]_ as
-    follows. *)
-
 Inductive multi {X : Type} (R : relation X) : relation X :=
   | multi_refl : forall (x : X), multi R x x
   | multi_step : forall (x y z : X),
-                    R x y ->
-                    multi R y z ->
-                    multi R x z.
-
-(** (In the [Rel] chapter of _Logical Foundations_ and
-    the Coq standard library, this relation is called
-    [clos_refl_trans_1n].  We give it a shorter name here for the sake
-    of readability.) *)
-
-(** The effect of this definition is that [multi R] relates two
-    elements [x] and [y] if
-
-       - [x = y], or
-       - [R x y], or
-       - there is some nonempty sequence [z1], [z2], ..., [zn] such that
-
-           R x z1
-           R z1 z2
-           ...
-           R zn y.
-
-    Intuitively, if [R] describes a single-step of computation, then
-    [z1] ... [zn] are the intermediate steps of computation that get
-    us from [x] to [y]. *)
-
-(** We write [-->*] for the [multi step] relation on terms. *)
+      R x y ->
+      multi R y z ->
+      multi R x z.
 
 Notation " t '-->*' t' " := (multi step t t') (at level 40).
 
-(** The relation [multi R] has several crucial properties.
-
-    First, it is obviously _reflexive_ (that is, [forall x, multi R x
-    x]).  In the case of the [-->*] (i.e., [multi step]) relation, the
-    intuition is that a term can execute to itself by taking zero
-    steps of execution. *)
-
-(** Second, it contains [R] -- that is, single-step executions are a
-    particular case of multi-step executions.  (It is this fact that
-    justifies the word "closure" in the term "multi-step closure of
-    [R].") *)
-
 Theorem multi_R : forall (X : Type) (R : relation X) (x y : X),
     R x y -> (multi R) x y.
-Proof.
-  intros X R x y H.
-  apply multi_step with y.
-  - apply H.
-  - apply multi_refl.
-Qed.
+Proof. intros. repeat econstructor. eauto. Qed.
 
-(** Third, [multi R] is _transitive_. *)
+Theorem multi_trans : forall (X : Type) (R : relation X) (x y z : X),
+  multi R x y  ->
+  multi R y z ->
+  multi R x z.
+Proof. intros; induction H; eauto; econstructor; eauto. Qed.
 
-Theorem multi_trans :
-  forall (X : Type) (R : relation X) (x y z : X),
-      multi R x y  ->
-      multi R y z ->
-      multi R x z.
-Proof.
-  intros X R x y z G H.
-  induction G.
-    - (* multi_refl *) assumption.
-    - (* multi_step *)
-      apply multi_step with y.
-      + assumption.
-      + apply IHG. assumption.
-Qed.
-
-(** In particular, for the [multi step] relation on terms, if
-    [t1 -->* t2] and [t2 -->* t3], then [t1 -->* t3]. *)
+Ltac mred1 R V :=
+  first [econstructor; fail | econstructor ; eauto using R, V].
+Ltac mred R V:= repeat (mred1 R V).
 
 (* ================================================================= *)
 (** ** Examples *)
 
-(** Here's a specific instance of the [multi step] relation: *)
-
-Lemma test_multistep_1:
-      P
-        (P (C 0) (C 3))
-        (P (C 2) (C 4))
-   -->*
-      C ((0 + 3) + (2 + 4)).
-Proof.
-  apply multi_step with
-            (P (C (0 + 3))
-               (P (C 2) (C 4))).
-  { apply ST_Plus1. apply ST_PlusConstConst. }
-  apply multi_step with
-            (P (C (0 + 3))
-               (C (2 + 4))).
-  { apply ST_Plus2.
-    - apply v_const.
-    - apply ST_PlusConstConst. }
-  apply multi_R.
-  apply ST_PlusConstConst.
-Qed.
-
-(** Here's an alternate proof of the same fact that uses [eapply] to
-    avoid explicitly constructing all the intermediate terms. *)
-
-Lemma test_multistep_1':
-      P
-        (P (C 0) (C 3))
-        (P (C 2) (C 4))
-  -->*
-      C ((0 + 3) + (2 + 4)).
-Proof.
-  eapply multi_step. { apply ST_Plus1. apply ST_PlusConstConst. }
-  eapply multi_step. { apply ST_Plus2.
-                       - apply v_const.
-                       - apply ST_PlusConstConst. }
-  eapply multi_step. { apply ST_PlusConstConst. }
-  apply multi_refl.
-Qed.
-
 (** **** Exercise: 1 star, standard, optional (test_multistep_2) *)
-Lemma test_multistep_2:
-  C 3 -->* C 3.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Lemma test_multistep_2: C 3 -->* C 3.
+Proof. mred step value. Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (test_multistep_3) *)
-Lemma test_multistep_3:
-      P (C 0) (C 3)
-   -->*
-      P (C 0) (C 3).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Lemma test_multistep_3: P (C 0) (C 3) -->* P (C 0) (C 3).
+Proof. mred step value. Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (test_multistep_4) *)
 Lemma test_multistep_4:
-      P
-        (C 0)
-        (P
-          (C 2)
-          (P (C 0) (C 3)))
-  -->*
-      P
-        (C 0)
-        (C (2 + (0 + 3))).
-Proof.
-  (* FILL IN HERE *) Admitted.
+  P (C 0) (P (C 2) (P (C 0) (C 3))) -->* P (C 0) (C (2 + (0 + 3))).
+Proof. mred step value. Qed.
 (** [] *)
 
 (* ================================================================= *)
 (** ** Normal Forms Again *)
 
-(** If [t] reduces to [t'] in zero or more steps and [t'] is a
-    normal form, we say that "[t'] is a normal form of [t]." *)
-
-Definition step_normal_form := normal_form step.
-
-Definition normal_form_of (t t' : tm) :=
-  (t -->* t' /\ step_normal_form t').
-
-(** We have already seen that, for our language, single-step reduction is
-    deterministic -- i.e., a given term can take a single step in
-    at most one way.  It follows from this that, if [t] can reach
-    a normal form, then this normal form is unique.  In other words, we
-    can actually pronounce [normal_form t t'] as "[t'] is _the_
-    normal form of [t]." *)
+Definition normal_form_of (t t' : tm) := (t -->* t' /\ normal_form step t').
 
 (** **** Exercise: 3 stars, standard, optional (normal_forms_unique) *)
-Theorem normal_forms_unique:
-  deterministic normal_form_of.
+Theorem normal_forms_unique: deterministic normal_form_of.
 Proof.
-  (* We recommend using this initial setup as-is! *)
-  unfold deterministic. unfold normal_form_of.
-  intros x y1 y2 P1 P2.
-  destruct P1 as [P11 P12].
-  destruct P2 as [P21 P22].
-  (* FILL IN HERE *) Admitted.
+  intros x y1 y2 [Hm1 Hn1] [Hm2 Hn2].
+  induction Hm1; inv Hm2.
+  - reflexivity.
+  - contradict Hn1; eauto.
+  - contradict Hn2; eauto.
+  - apply (step_deterministic _ y _ H) in H0; subst y0; eauto.
+Qed.
 (** [] *)
 
-(** Indeed, something stronger is true for this language (though
-    not for all languages): the reduction of _any_ term [t] will
-    eventually reach a normal form -- i.e., [normal_form_of] is a
-    _total_ function.  We say the [step] relation is _normalizing_. *)
-
-Definition normalizing {X : Type} (R : relation X) :=
-  forall t, exists t',
-    (multi R) t t' /\ normal_form R t'.
-
-(** To prove that [step] is normalizing, we need a couple of lemmas.
-
-    First, we observe that, if [t] reduces to [t'] in many steps, then
-    the same sequence of reduction steps within [t] is also possible
-    when [t] appears as the first argument to [P], and
-    similarly when [t] appears as the second argument to [P]
-    (and the first argument is a value). *)
+Definition normalizing {X : Type} (R : relation X) := forall t, exists t',
+  (multi R) t t' /\ normal_form R t'.
 
 Lemma multistep_congr_1 : forall t1 t1' t2,
-     t1 -->* t1' ->
-     P t1 t2 -->* P t1' t2.
-Proof.
-  intros t1 t1' t2 H. induction H.
-  - (* multi_refl *) apply multi_refl.
-  - (* multi_step *) apply multi_step with (P y t2).
-    + apply ST_Plus1. apply H.
-    + apply IHmulti.
-Qed.
+  t1 -->* t1' -> P t1 t2 -->* P t1' t2.
+Proof. intros; induction H; mred step value. Qed.
 
 (** **** Exercise: 2 stars, standard (multistep_congr_2) *)
 Lemma multistep_congr_2 : forall v1 t2 t2',
-     value v1 ->
-     t2 -->* t2' ->
-     P v1 t2 -->* P v1 t2'.
-Proof.
-  (* FILL IN HERE *) Admitted.
+  value v1 -> t2 -->* t2' -> P v1 t2 -->* P v1 t2'.
+Proof. intros. induction H0; mred step value. Qed.
 (** [] *)
 
-(** With these lemmas in hand, the main proof is a straightforward
-    induction.
+Ltac mtrans1 :=
+  eapply multi_trans;
+  [first [
+    eapply multistep_congr_1; eauto using value; fail |
+    eapply multistep_congr_2; eauto using value; fail
+  ]|].
+Ltac mauto := repeat mtrans1; mred step value.
 
-    _Theorem_: The [step] function is normalizing -- i.e., for every
-    [t] there exists some [t'] such that [t] reduces to [t'] and [t']
-    is a normal form.
-
-    _Proof sketch_: By induction on terms.  There are two cases to
-    consider:
-
-    - [t = C n] for some [n].  Here [t] doesn't take a step, and we
-      have [t' = t].  We can derive the left-hand side by reflexivity
-      and the right-hand side by observing (a) that values are normal
-      forms (by [nf_same_as_value]) and (b) that [t] is a value (by
-      [v_const]).
-
-    - [t = P t1 t2] for some [t1] and [t2].  By the IH, [t1] and [t2]
-      reduce to normal forms [t1'] and [t2'].  Recall that normal
-      forms are values (by [nf_same_as_value]); we therefore know that
-      [t1' = C v1] and [t2' = C v2], for some [v1] and [v2].  We can
-      combine the [-->*] derivations for [t1] and [t2] using
-      [multi_congr_1] and [multi_congr_2] to prove that [P t1 t2]
-      reduces in many steps to [t' = C (v1 + v2)].
-
-      Finally, [C (v1 + v2)] is a value, which is in turn a normal
-      form by [nf_same_as_value]. [] *)
-
-Theorem step_normalizing :
-  normalizing step.
+Theorem step_normalizing : normalizing step.
 Proof.
-  unfold normalizing.
-  induction t.
-  - (* C *)
-    exists (C n).
-    split.
-    + (* l *) apply multi_refl.
-    + (* r *)
-      (* We can use [rewrite] with "iff" statements, not
-           just equalities: *)
-      apply nf_same_as_value. apply v_const.
-  - (* P *)
-    destruct IHt1 as [t1' [Hsteps1 Hnormal1] ].
-    destruct IHt2 as [t2' [Hsteps2 Hnormal2] ].
-    apply nf_same_as_value in Hnormal1.
-    apply nf_same_as_value in Hnormal2.
-    destruct Hnormal1 as [v1].
-    destruct Hnormal2 as [v2].
-    exists (C (v1 + v2)).
-    split.
-    + (* l *)
-      apply multi_trans with (P (C v1) t2).
-      * apply multistep_congr_1. apply Hsteps1.
-      * apply multi_trans with (P (C v1) (C v2)).
-        { apply multistep_congr_2.
-          - apply v_const.
-          - apply Hsteps2. }
-        apply multi_R. apply ST_PlusConstConst.
-    + (* r *)
-      apply nf_same_as_value. apply v_const.
+  intros t; induction t as [|t1 [t1' [Hm1 Hn1]] t2 [t2' [Hm2 Hn2]]];
+  [|apply nf_same_as_value in Hn1, Hn2; destruct Hn1 as [n1], Hn2 as [n2]];
+  [exists (C n) | exists (C (n1 + n2))]; split.
+  - mauto.
+  - intros [t']; inv H.
+  - mauto.
+  - apply nf_same_as_value; econstructor.
 Qed.
 
 (* ================================================================= *)
 (** ** Equivalence of Big-Step and Small-Step *)
 
-(** Having defined the operational semantics of our tiny programming
-    language in two different ways (big-step and small-step), it makes
-    sense to ask whether these definitions actually define the same
-    thing! *)
-
-(** They do, though it takes a little work to show it.  The
-    details are left as an exercise. *)
-
 (** **** Exercise: 3 stars, standard (eval__multistep) *)
-Theorem eval__multistep : forall t n,
-  t ==> n -> t -->* C n.
-
-(** The key ideas in the proof can be seen in the following picture:
-
-       P t1 t2 -->            (by ST_Plus1)
-       P t1' t2 -->           (by ST_Plus1)
-       P t1'' t2 -->          (by ST_Plus1)
-       ...
-       P (C v1) t2 -->        (by ST_Plus2)
-       P (C v1) t2' -->       (by ST_Plus2)
-       P (C v1) t2'' -->      (by ST_Plus2)
-       ...
-       P (C v1) (C v2) -->    (by ST_PlusConstConst)
-       C (v1 + v2)
-
-    That is, the multistep reduction of a term of the form [P t1 t2]
-    proceeds in three phases:
-       - First, we use [ST_Plus1] some number of times to reduce [t1]
-         to a normal form, which must (by [nf_same_as_value]) be a
-         term of the form [C v1] for some [v1].
-       - Next, we use [ST_Plus2] some number of times to reduce [t2]
-         to a normal form, which must again be a term of the form [C
-         v2] for some [v2].
-       - Finally, we use [ST_PlusConstConst] one time to reduce [P (C
-         v1) (C v2)] to [C (v1 + v2)]. *)
-
-(** To formalize this intuition, you'll need to use the congruence
-    lemmas from above (you might want to review them now, so that
-    you'll be able to recognize when they are useful), plus some basic
-    properties of [-->*]: that it is reflexive, transitive, and
-    includes [-->]. *)
-
-Proof.
-  (* FILL IN HERE *) Admitted.
+Theorem eval__multistep : forall t n, t ==> n -> t -->* C n.
+Proof. intros t n H; induction H; mauto. Qed.
 (** [] *)
 
-(** **** Exercise: 3 stars, advanced (eval__multistep_inf)
-
-    Write a detailed informal version of the proof of [eval__multistep].
-
-(* FILL IN HERE *)
-*)
+(** **** Exercise: 3 stars, advanced (eval__multistep_inf) *)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_eval__multistep_inf : option (nat*string) := None.
 (** [] *)
 
-(** For the other direction, we need one lemma, which establishes a
-    relation between single-step reduction and big-step evaluation. *)
-
 (** **** Exercise: 3 stars, standard (step__eval) *)
-Lemma step__eval : forall t t' n,
-     t --> t' ->
-     t' ==> n ->
-     t  ==> n.
+Lemma step__eval : forall t t' n, t --> t' -> t' ==> n -> t  ==> n.
 Proof.
-  intros t t' n Hs. generalize dependent n.
-  (* FILL IN HERE *) Admitted.
+  intros t t' n Hs; revert n.
+  induction Hs; intros;
+  [inv H|inv H|destruct H as [n1]; inv H0]; eauto using eval.
+Qed.
 (** [] *)
-
-(** The fact that small-step reduction implies big-step evaluation is now
-    straightforward to prove.
-
-    The proof proceeds by induction on the multi-step reduction
-    sequence that is buried in the hypothesis [normal_form_of t t']. *)
-
-(** Make sure you understand the statement before you start to
-    work on the proof.  *)
 
 (** **** Exercise: 3 stars, standard (multistep__eval) *)
 Theorem multistep__eval : forall t t',
   normal_form_of t t' -> exists n, t' = C n /\ t ==> n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t t' [Hm Hn]; apply nf_is_value in Hn.
+  induction Hm.
+  - destruct Hn as [n]; exists n. split; eauto using eval.
+  - destruct Hn as [n]; exists n. split; eauto.
+    eapply step__eval; eauto.
+    assert (exists n0 : nat, C n = C n0 /\ y ==> n0) by eauto using value.
+    destruct H0 as [n0 []]; inv H0; eauto.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
 (** ** Additional Exercises *)
 
-(** **** Exercise: 3 stars, standard, optional (interp_tm)
+(** **** Exercise: 3 stars, standard, optional (interp_tm) *)
 
-    Remember that we also defined big-step evaluation of terms as a
-    function [evalF].  Prove that it is equivalent to the existing
-    semantics.  (Hint: we just proved that [eval] and [multistep] are
-    equivalent, so logically it doesn't matter which you choose.
-    One will be easier than the other, though!) *)
+Fixpoint evalF (t : tm) : nat :=
+  match t with
+  | C n => n
+  | P t1 t2 => evalF t1 + evalF t2
+  end.
 
 Theorem evalF_eval : forall t n,
   evalF t = n <-> t ==> n.
@@ -1610,7 +826,7 @@ Qed.
     following the small step semantics in a particular strategy to
     exhibit the desired behavior. For that reason, they are a bit
     awkward to write with "forced bullets". Nevertheless, we keep them
-    because they emphasize that the witness for an evaluation by
+    bese they emphasize that the witness for an evaluation by
     small-step semantics has a size that is proportional to the number
     of steps taken.  It would be an interesting exercise to write Coq
     tactics that can help automate the construction of such proofs,
@@ -1892,5 +1108,3 @@ Theorem normalize_ex' : exists e',
 Proof.
   (* FILL IN HERE *) Admitted.
 (** [] *)
-
-(* 2023-03-25 11:16 *)

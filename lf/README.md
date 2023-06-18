@@ -14,4 +14,4 @@ To see full script, please refer to [logical foundations](https://softwarefounda
 7. [Inductively Defined Propositions](IndProp.v)
 8. [Total and Partial Maps](Maps.v)
 9. [The Curry-Howard Correspondence](ProofObjects.v)
-10. [Simple Imperative Programs](/Imp.v)
+10. [Simple Imperative Programs](Imp.v)
