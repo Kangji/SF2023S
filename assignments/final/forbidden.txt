@@ -1,0 +1,8 @@
+Axiom
+admit
+Admitted
+Variable
+Parameter
+tauto
+intuition
+firstorder
